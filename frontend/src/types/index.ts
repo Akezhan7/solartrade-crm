@@ -11,14 +11,30 @@ export interface Company {
   clientId: string;
 }
 
+export interface Contact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  email?: string;
+  birthDate?: string;
+  position?: string;
+  notes?: string;
+  clientId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Client {
   id: string;
   name: string;
   phone: string;
   email: string;
   company: Company | null;
+  contacts?: Contact[];
   companyName?: string; // Added for dashboard display
   dealsCount?: number; // Number of deals for this client
+  managerId: string; // Manager assigned to this client
   createdAt: string;
   updatedAt: string;
 }

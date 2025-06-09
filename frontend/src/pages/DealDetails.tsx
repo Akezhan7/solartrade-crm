@@ -100,10 +100,20 @@ const DealDetails: React.FC = () => {
     open: false,
     message: '',
     severity: 'success' as 'success' | 'error' | 'info' | 'warning'
-  });
-  const [isEditing, setIsEditing] = useState(false);  // Make sure we display the correct deal based on the route ID
+  });  const [isEditing, setIsEditing] = useState(false);  
+  
+  // Make sure we display the correct deal based on the route ID
   useEffect(() => {
     console.log("Deal ID from URL:", id);
+    
+    // Проверяем, есть ли в URL параметр edit
+    const searchParams = new URLSearchParams(window.location.search);
+    const shouldEdit = searchParams.get('edit') === 'true';
+    
+    // Если параметр edit=true, переходим в режим редактирования
+    if (shouldEdit) {
+      setIsEditing(true);
+    }
   }, [id]);
     useEffect(() => {
     const fetchDealData = async () => {

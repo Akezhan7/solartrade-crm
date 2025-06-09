@@ -18,11 +18,10 @@ export class TasksController {
   create(@Body() createTaskDto: CreateTaskDto, @Req() req) {
     return this.tasksService.create(createTaskDto, req.user.id);
   }
-
   @ApiOperation({ summary: 'Получение списка всех задач с возможностью фильтрации' })
-  @ApiResponse({ status: 200, description: 'Список задач' })
-  @Get()
+  @ApiResponse({ status: 200, description: 'Список задач' })  @Get()
   findAll(
+    @Req() req,
     @Query('status') status?: string,
     @Query('assigneeId') assigneeId?: string,
     @Query('clientId') clientId?: string,
@@ -38,17 +37,15 @@ export class TasksController {
       dueDate,
       overdue,
     };
-    return this.tasksService.findAll(filters);
+    return this.tasksService.findAll(filters, req.user);
   }
-
   @ApiOperation({ summary: 'Получение задачи по ID' })
   @ApiResponse({ status: 200, description: 'Данные задачи' })
   @ApiResponse({ status: 404, description: 'Задача не найдена' })
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tasksService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req) {
+    return this.tasksService.findOne(id, req.user);
   }
-
   @ApiOperation({ summary: 'Обновление данных задачи' })
   @ApiResponse({ status: 200, description: 'Данные задачи обновлены' })
   @ApiResponse({ status: 404, description: 'Задача не найдена' })

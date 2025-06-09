@@ -44,12 +44,12 @@ import { ru } from 'date-fns/locale';
 const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [loading, setLoading] = useState(true);
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));  const [loading, setLoading] = useState(true);
   const [task, setTask] = useState<Task | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -71,15 +71,18 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
         if (taskResponse.id !== id) {
           console.error(`Task ID mismatch: expected ${id}, got ${taskResponse.id}`);
         }
+          // Загружаем список клиентов, сделок и пользователей для возможности редактирования
+        const [clientsResponse, dealsResponse, usersResponse] = await Promise.all([
+          apiService.getClients(),
+          apiService.getDeals(),
+          apiService.getUsers()
+        ]);
         
-        // Загружаем список клиентов и сделок для возможности редактирования
-        const clientsResponse = await apiService.getClients();
         setClients(clientsResponse);
-        
-        const dealsResponse = await apiService.getDeals();
         setDeals(dealsResponse);
+        setUsers(usersResponse);
         
-        // Добавляем имена клиента и сделки для отображения
+        // Добавляем имена клиента, сделки и исполнителя для отображения
         let enrichedTask = {...taskResponse};
         
         // Добавление имени клиента
@@ -92,8 +95,7 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
             console.log(`Client not found for ID: ${taskResponse.clientId}`);
           }
         }
-        
-        // Добавление названия сделки
+          // Добавление названия сделки
         if (taskResponse.dealId && dealsResponse) {
           const deal = dealsResponse.find((d: any) => d.id === taskResponse.dealId);
           if (deal) {
@@ -101,6 +103,17 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
             console.log(`Found deal name: ${deal.title} for dealId: ${taskResponse.dealId}`);
           } else {
             console.log(`Deal not found for ID: ${taskResponse.dealId}`);
+          }
+        }
+        
+        // Добавление имени исполнителя
+        if (taskResponse.assigneeId && usersResponse) {
+          const assignee = usersResponse.find((u: any) => u.id === taskResponse.assigneeId);
+          if (assignee) {
+            enrichedTask.assigneeName = assignee.name;
+            console.log(`Found assignee name: ${assignee.name} for assigneeId: ${taskResponse.assigneeId}`);
+          } else {
+            console.log(`Assignee not found for ID: ${taskResponse.assigneeId}`);
           }
         }
         
@@ -166,10 +179,10 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
     
     try {
       console.log('Saving task with data:', task); // Для отладки
-      
-      // Сохраняем имена для отображения на фронте
+        // Сохраняем имена для отображения на фронте
       let clientName = null;
       let dealName = null;
+      let assigneeName = null;
       
       // Если был изменен клиент, обновляем имя клиента
       if (task.clientId) {
@@ -186,6 +199,18 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
           dealName = deal.title;
         }
       }
+        // Обновляем имя исполнителя
+      if (task.assigneeId) {
+        const assignee = users.find(u => u.id === task.assigneeId);
+        if (assignee) {
+          assigneeName = assignee.name;
+          console.log(`Found assignee name: ${assignee.name} for assigneeId: ${task.assigneeId}`);
+        } else {
+          console.log(`Assignee not found for ID: ${task.assigneeId}`);
+        }
+      } else {
+        console.log('No assigneeId provided');
+      }
       
       // Подготавливаем данные для отправки на сервер (только то, что ожидает API)
       const taskDataToUpdate = {
@@ -201,14 +226,14 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
       
       console.log('Sending task data to API:', taskDataToUpdate); // Для отладки
       
-      const updatedTask = await apiService.updateTask(task.id, taskDataToUpdate);
-      console.log('Received updated task:', updatedTask); // Для отладки
+      const updatedTask = await apiService.updateTask(task.id, taskDataToUpdate);      console.log('Received updated task:', updatedTask); // Для отладки
       
       // Обновляем локальный объект задачи с данными от сервера плюс имена
       const fullUpdatedTask = {
         ...updatedTask,
         clientName: clientName,
-        dealName: dealName
+        dealName: dealName,
+        assigneeName: assigneeName
       };
       
       setTask(fullUpdatedTask);
@@ -302,7 +327,17 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
       });
       return;
     }
-    
+      // Для исполнителя
+    if (name === 'assigneeId') {
+      const selectedUser = users.find(user => user.id === value);
+      setTask({
+        ...task,
+        assigneeId: value,
+        assigneeName: selectedUser ? selectedUser.name : ''
+      });
+      return;
+    }
+  
     // Для всех остальных изменений
     setTask({
       ...task,
@@ -564,15 +599,33 @@ const TaskDetails: React.FC = () => {  const { id } = useParams<{ id: string }>(
                   )}
                 </Box>
               </Grid>
-              
-              <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6}>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                     Ответственный
                   </Typography>
-                  <Typography variant="body1">
-                    {task.assigneeName || 'Не назначен'}
-                  </Typography>
+                  {isEditing ? (
+                    <FormControl fullWidth>
+                      <InputLabel>Исполнитель</InputLabel>
+                      <Select
+                        name="assigneeId"
+                        value={task.assigneeId || ""}
+                        onChange={handleTaskSelectChange}
+                        label="Исполнитель"
+                      >
+                        <MenuItem value="">Не назначен</MenuItem>
+                        {users.map((user) => (
+                          <MenuItem key={user.id} value={user.id}>
+                            {user.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <Typography variant="body1">
+                      {task.assigneeName || 'Не назначен'}
+                    </Typography>
+                  )}
                 </Box>
               </Grid>
             </Grid>

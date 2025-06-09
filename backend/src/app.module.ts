@@ -12,6 +12,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
+import { ContactsModule } from './contacts/contacts.module';
 
 @Module({
   imports: [
@@ -28,14 +29,13 @@ import { HealthModule } from './health/health.module';
     AuthModule,
     UsersModule,
     ClientsModule,
-    DealsModule,
-    TasksModule,
+    DealsModule,    TasksModule,
     InteractionsModule,
     SettingsModule,
     HealthModule,
-    HealthModule,
     TelegramModule,
     DashboardModule,
+    ContactsModule,
   ],
 })
 export class AppModule {}

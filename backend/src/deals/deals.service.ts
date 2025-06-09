@@ -63,9 +63,13 @@ export class DealsService {
 
     return deal;
   }
+  async findAll(user) {
+    // Filter deals based on user role
+    // ADMIN sees all deals, MANAGER and SALES see only their own deals
+    const where = user.role === 'ADMIN' ? {} : { managerId: user.id };
 
-  async findAll() {
     return this.prisma.deal.findMany({
+      where,
       include: {
         client: true,
         manager: true,
@@ -75,8 +79,7 @@ export class DealsService {
       },
     });
   }
-
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const deal = await this.prisma.deal.findUnique({
       where: { id },
       include: {
@@ -92,6 +95,11 @@ export class DealsService {
 
     if (!deal) {
       throw new NotFoundException(`Сделка с ID ${id} не найдена`);
+    }
+
+    // Check if user has access to this deal
+    if (user && user.role !== 'ADMIN' && deal.managerId !== user.id) {
+      throw new NotFoundException(`У вас нет доступа к сделке с ID ${id}`);
     }
 
     return deal;

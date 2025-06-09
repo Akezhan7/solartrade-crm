@@ -22,8 +22,7 @@ export const mockUsers = [
 ];
 
 // Мок-клиенты
-export const mockClients: Client[] = [
-  {
+export const mockClients: Client[] = [  {
     id: 'client-001',
     name: 'ООО "Солнечный дом"',
     phone: '+7 (495) 123-45-67',
@@ -37,19 +36,19 @@ export const mockClients: Client[] = [
       bankDetails: 'р/с 40702810123456789012 в ПАО "Сбербанк"',
       clientId: 'client-001'
     },
+    managerId: '1',
     createdAt: '2023-04-10T12:00:00Z',
     updatedAt: '2023-04-10T12:00:00Z'
-  },
-  {
+  },  {
     id: 'client-002',
     name: 'Иванов Алексей Петрович',
     phone: '+7 (903) 987-65-43',
     email: 'ivanov@example.com',
     company: null,
+    managerId: '2',
     createdAt: '2023-04-15T10:30:00Z',
     updatedAt: '2023-04-15T10:30:00Z'
-  },
-  {
+  },  {
     id: 'client-003',
     name: 'ООО "ТехноСтрой"',
     phone: '+7 (499) 765-43-21',
@@ -63,6 +62,7 @@ export const mockClients: Client[] = [
       bankDetails: 'р/с 40702810987654321098 в АО "Альфа-Банк"',
       clientId: 'client-003'
     },
+    managerId: '1',
     createdAt: '2023-04-20T14:15:00Z',
     updatedAt: '2023-04-20T14:15:00Z'
   }

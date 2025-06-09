@@ -42,7 +42,6 @@ export class InteractionsService {
 
     return interaction;
   }
-
   async findByClient(clientId: string) {
     // Проверяем существование клиента
     const client = await this.prisma.client.findUnique({
@@ -57,6 +56,19 @@ export class InteractionsService {
       where: { clientId },
       orderBy: {
         createdAt: 'desc',
+      },
+    });
+  }
+  
+  async update(id: string, updateInteractionDto: any) {
+    // Проверяем существование взаимодействия
+    const interaction = await this.findOne(id);
+    
+    return this.prisma.interaction.update({
+      where: { id },
+      data: updateInteractionDto,
+      include: {
+        client: true,
       },
     });
   }

@@ -21,20 +21,18 @@ export class DealsController {
   create(@Body() createDealDto: CreateDealDto, @Req() req) {
     return this.dealsService.create(createDealDto, req.user.id);
   }
-
   @ApiOperation({ summary: 'Получение списка всех сделок' })
   @ApiResponse({ status: 200, description: 'Список сделок' })
   @Get()
-  findAll() {
-    return this.dealsService.findAll();
+  findAll(@Req() req) {
+    return this.dealsService.findAll(req.user);
   }
-
   @ApiOperation({ summary: 'Получение сделки по ID' })
   @ApiResponse({ status: 200, description: 'Данные сделки' })
   @ApiResponse({ status: 404, description: 'Сделка не найдена' })
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.dealsService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req) {
+    return this.dealsService.findOne(id, req.user);
   }
 
   @ApiOperation({ summary: 'Обновление данных сделки' })

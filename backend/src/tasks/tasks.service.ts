@@ -99,9 +99,16 @@ export class TasksService {
 
     return task;
   }
-
-  async findAll(filters?: any) {
+  async findAll(filters?: any, user?: any) {
     const where: any = {};
+
+    // Apply role-based filtering
+    if (user) {
+      if (user.role !== 'ADMIN') {
+        // MANAGER and SALES users can only see tasks assigned to them
+        where.assigneeId = user.id;
+      }
+    }
 
     // Применяем фильтры, если они указаны
     if (filters) {
@@ -109,6 +116,7 @@ export class TasksService {
         where.status = filters.status;
       }
       if (filters.assigneeId) {
+        // If an admin is filtering by assignee, override the default role-based filter
         where.assigneeId = filters.assigneeId;
       }
       if (filters.clientId) {
@@ -147,8 +155,7 @@ export class TasksService {
       ],
     });
   }
-
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const task = await this.prisma.task.findUnique({
       where: { id },
       include: {
@@ -161,6 +168,11 @@ export class TasksService {
 
     if (!task) {
       throw new NotFoundException(`Задача с ID ${id} не найдена`);
+    }
+
+    // Check if user has access to this task
+    if (user && user.role !== 'ADMIN' && task.assigneeId !== user.id && task.createdById !== user.id) {
+      throw new NotFoundException(`У вас нет доступа к задаче с ID ${id}`);
     }
 
     return task;

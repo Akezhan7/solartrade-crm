@@ -28,9 +28,10 @@ import {
   Switch,
   LinearProgress,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Autocomplete
 } from '@mui/material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -61,9 +62,9 @@ interface DealFilters {
   clientId: string | 'ALL';
 }
 
-const Deals: React.FC = () => {
-  const navigate = useNavigate();
+const Deals: React.FC = () => {  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
@@ -105,11 +106,21 @@ const Deals: React.FC = () => {
     source: '',
     sendTelegramNotification: true
   });
-
   // Загрузка данных при монтировании компонента
   useEffect(() => {
     fetchData();
-  }, []);
+    
+    // Проверяем, есть ли запрос на создание новой сделки с указанным клиентом
+    const searchParams = new URLSearchParams(location.search);
+    const clientId = searchParams.get('clientId');
+    if (location.pathname === '/deals/new' && clientId) {
+      setNewDeal(prev => ({
+        ...prev,
+        clientId
+      }));
+      setOpenNewDealDialog(true);
+    }
+  }, [location]);
 
   // Эффект для открытия сделки по ID из URL
   useEffect(() => {
@@ -528,23 +539,19 @@ const Deals: React.FC = () => {
               </Select>
             </FormControl>
           </Grid>
-          
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Клиент</InputLabel>
-              <Select
-                value={filters.clientId}
-                label="Клиент"
-                onChange={(e) => setFilters({ ...filters, clientId: e.target.value as string })}
-              >
-                <MenuItem value="ALL">Все клиенты</MenuItem>
-                {clients.map((client) => (
-                  <MenuItem key={client.id} value={client.id}>
-                    {client.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Grid item xs={12} sm={4}>
+            <Autocomplete
+              size="small"
+              options={[{ id: 'ALL', name: 'Все клиенты' }, ...clients]}
+              getOptionLabel={(option) => option.name}
+              value={filters.clientId === 'ALL' 
+                ? { id: 'ALL', name: 'Все клиенты' }
+                : clients.find(client => client.id === filters.clientId) || { id: 'ALL', name: 'Все клиенты' }}
+              onChange={(_, newValue) => {
+                setFilters({ ...filters, clientId: newValue?.id || 'ALL' });
+              }}
+              renderInput={(params) => <TextField {...params} label="Клиент" />}
+            />
           </Grid>
         </Grid>
       </Paper>
@@ -632,7 +639,7 @@ const Deals: React.FC = () => {
                 columns={columns}
                 initialState={{
                   pagination: {
-                    paginationModel: { page: 0, pageSize: 25 },
+                    paginationModel: { page: 0, pageSize: 10 },
                   },
                   sorting: {
                     sortModel: [{ field: 'updatedAt', sort: 'desc' }],
@@ -706,23 +713,46 @@ const Deals: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Клиент</InputLabel>
-                <Select
-                  value={newDeal.clientId}
-                  label="Клиент"
-                  onChange={(e) => setNewDeal({ ...newDeal, clientId: e.target.value })}
-                >
-                  <MenuItem value="">Выберите клиента</MenuItem>
-                  {clients.map((client) => (
-                    <MenuItem key={client.id} value={client.id}>
-                      {client.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Grid item xs={12} sm={6}>
+              <Autocomplete
+                id="client-select"
+                options={clients}
+                getOptionLabel={(option) => option.name}
+                value={clients.find(client => client.id === newDeal.clientId) || null}
+                onChange={(_, newValue) => {
+                  setNewDeal({ 
+                    ...newDeal, 
+                    clientId: newValue?.id || '' 
+                  });
+                }}
+                filterOptions={(options, state) => {
+                  // Фильтрация по частичному совпадению в имени, телефоне или email
+                  const inputValue = state.inputValue.toLowerCase().trim();
+                  return options.filter(client => 
+                    client.name.toLowerCase().includes(inputValue) || 
+                    (client.phone && client.phone.toLowerCase().includes(inputValue)) ||
+                    (client.email && client.email.toLowerCase().includes(inputValue))
+                  );
+                }}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <strong>{option.name}</strong>
+                      <small>
+                        {option.phone && `Тел: ${option.phone}`}
+                        {option.email && option.phone && ' | '}
+                        {option.email && `Email: ${option.email}`}
+                      </small>
+                    </div>
+                  </li>
+                )}
+                renderInput={(params) => <TextField 
+                  {...params} 
+                  label="Клиент" 
+                  variant="outlined" 
+                  required 
+                />}
+              />
             </Grid>
             
             <Grid item xs={12} sm={6}>

@@ -44,7 +44,8 @@ import {
   Assignment as AssignmentIcon, 
   AttachMoney as AttachMoneyIcon,
   ArrowUpward as ArrowUpwardIcon,
-  ArrowDownward as ArrowDownwardIcon,  ArrowForward as ArrowForwardIcon,
+  ArrowDownward as ArrowDownwardIcon,  
+  ArrowForward as ArrowForwardIcon,
   Add as AddIcon,
   Dashboard as DashboardIcon,
   Refresh as RefreshIcon,
@@ -60,7 +61,8 @@ import {
   AccessTime as AccessTimeIcon,
   NotificationsActive as NotificationsActiveIcon,
   CalendarToday as CalendarTodayIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Business as BusinessIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -107,11 +109,11 @@ interface DashboardData {
   activeTasks: Task[];
   upcomingDeals: Deal[];
   topClients: Client[];
-  revenueByMonth: {
+  revenueByMonth?: {
     labels: string[];
     data: number[];
   };
-  dealsByStatus: {
+  dealsByStatus?: {
     labels: string[];
     data: number[];
   };
@@ -143,15 +145,31 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     try {
       // Получаем данные через API
-      const dashboardResult = await apiService.getDashboardData();
-      const latestClientsData = await apiService.getLatestClients(5);
+      const dashboardResult = await apiService.getDashboardData() || {};
+      let latestClientsData = [];
       
-      // Объединяем данные
+      try {
+        latestClientsData = await apiService.getLatestClients(5) || [];
+      } catch (clientError) {
+        console.error('Error fetching latest clients:', clientError);
+        latestClientsData = [];
+      }
+      
+      // Проверяем, что dashboardResult.stats существует
+      const stats = dashboardResult.stats || {};
+      
+      // Объединяем данные с проверкой на null/undefined
       const dashboardData = {
-        ...dashboardResult.stats,
-        activeTasks: dashboardResult.activeTasks || [],
-        upcomingDeals: dashboardResult.upcomingDeals || [],
-        topClients: latestClientsData || [],
+        totalClients: stats.totalClients || 0,
+        newClientsThisMonth: stats.newClientsThisMonth || 0,
+        totalDeals: stats.totalDeals || 0,
+        activeDealCount: stats.activeDealCount || 0,
+        totalRevenue: stats.totalRevenue || 0,
+        activeTaskCount: stats.activeTaskCount || 0,
+        completedTaskCount: stats.completedTaskCount || 0,
+        activeTasks: Array.isArray(dashboardResult.activeTasks) ? dashboardResult.activeTasks : [],
+        upcomingDeals: Array.isArray(dashboardResult.upcomingDeals) ? dashboardResult.upcomingDeals : [],
+        topClients: Array.isArray(latestClientsData) ? latestClientsData : [],
         revenueByMonth: dashboardResult.revenueByMonth || {
           labels: ['Янв', 'Фев', 'Март', 'Апр', 'Май', 'Июнь'],
           data: [0, 0, 0, 0, 0, 0]
@@ -245,14 +263,13 @@ const Dashboard: React.FC = () => {
       }
     }
   };
-  
-  // Данные для диаграммы выручки по месяцам
+    // Данные для диаграммы выручки по месяцам
   const revenueChartData = {
-    labels: dashboardData.revenueByMonth.labels,
+    labels: dashboardData.revenueByMonth?.labels || [],
     datasets: [
       {
         label: 'Выручка',
-        data: dashboardData.revenueByMonth.data,
+        data: dashboardData.revenueByMonth?.data || [],
         backgroundColor: alpha(chartColors.revenue, 0.5),
         borderColor: chartColors.revenue,
         borderWidth: 2,
@@ -286,14 +303,13 @@ const Dashboard: React.FC = () => {
     },
     cutout: '50%'
   };
-  
-  // Данные для диаграммы сделок по статусам
+    // Данные для диаграммы сделок по статусам
   const dealsChartData = {
-    labels: dashboardData.dealsByStatus.labels,
+    labels: dashboardData.dealsByStatus?.labels || [],
     datasets: [
       {
         label: 'Сделки',
-        data: dashboardData.dealsByStatus.data,
+        data: dashboardData.dealsByStatus?.data || [],
         backgroundColor: [
           '#4CAF50', // Зеленый - завершенные
           '#2196F3', // Синий - в работе
@@ -311,103 +327,95 @@ const Dashboard: React.FC = () => {
   };
   
   // Отображение компонента
-  return (
-    <Container maxWidth="xl" sx={{ mt: 3, mb: 3 }}>
-      <Typography variant="h4" gutterBottom>
+  return (    <Container maxWidth="xl" sx={{ mt: 3, mb: 3, px: { xs: 1, sm: 2, md: 3 } }}>
+      <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.25rem' } }}>
         Дашборд
       </Typography>
 
-      {/* Карточки с основными показателями */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      {/* Карточки с основными показателями */}      <Grid container spacing={2} sx={{ mb: 3 }}>
         {/* Клиенты */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 Клиенты
               </Typography>
-              <Avatar sx={{ bgcolor: theme.palette.info.light, width: 32, height: 32 }}>
+              <Avatar sx={{ bgcolor: theme.palette.info.light, width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 } }}>
                 <PeopleAltIcon fontSize="small" />
               </Avatar>
-            </Box>
-            <Typography variant="h5" component="div">
+            </Box>            <Typography variant="h5" component="div" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
               {dashboardData.totalClients}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <ArrowUpwardIcon sx={{ color: 'success.main', fontSize: '1rem' }} />
-              <Typography variant="body2" sx={{ ml: 0.5, color: 'success.main' }}>
+              <ArrowUpwardIcon sx={{ color: 'success.main', fontSize: { xs: '0.875rem', sm: '1rem' } }} />
+              <Typography variant="body2" sx={{ ml: 0.5, color: 'success.main', fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                 +{dashboardData.newClientsThisMonth} в этом месяце
               </Typography>
             </Box>
           </Paper>
         </Grid>
-        
-        {/* Сделки */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
+          {/* Сделки */}
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 Активные сделки
               </Typography>
-              <Avatar sx={{ bgcolor: theme.palette.secondary.light, width: 32, height: 32 }}>
+              <Avatar sx={{ bgcolor: theme.palette.secondary.light, width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 } }}>
                 <BusinessCenterIcon fontSize="small" />
               </Avatar>
-            </Box>
-            <Typography variant="h5" component="div">
+            </Box>            <Typography variant="h5" component="div" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
               {dashboardData.activeDealCount}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                 Всего {dashboardData.totalDeals} сделок
               </Typography>
             </Box>
           </Paper>
         </Grid>
-        
-        {/* Выручка */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
+          {/* Выручка */}
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 Выручка
               </Typography>
-              <Avatar sx={{ bgcolor: theme.palette.primary.light, width: 32, height: 32 }}>
+              <Avatar sx={{ bgcolor: theme.palette.primary.light, width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 } }}>
                 <AttachMoneyIcon fontSize="small" />
               </Avatar>
-            </Box>
-            <Typography variant="h5" component="div">
+            </Box>            <Typography variant="h5" component="div" sx={{ fontSize: { xs: '1.1rem', sm: '1.5rem' }, wordBreak: 'break-word' }}>
               {new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
                 currency: 'RUB',
-                maximumFractionDigits: 0
-              }).format(dashboardData.totalRevenue)}
+                maximumFractionDigits: 0,
+                notation: isSmallMobile ? 'compact' : 'standard'
+              }).format(dashboardData.totalRevenue || 0)}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <ArrowForwardIcon sx={{ color: 'info.main', fontSize: '1rem' }} />
-              <Typography variant="body2" sx={{ ml: 0.5, color: 'info.main' }}>
+              <ArrowForwardIcon sx={{ color: 'info.main', fontSize: { xs: '0.875rem', sm: '1rem' } }} />
+              <Typography variant="body2" sx={{ ml: 0.5, color: 'info.main', fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                 Прогноз выполнен на 75%
               </Typography>
             </Box>
           </Paper>
         </Grid>
-        
-        {/* Задачи */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
+          {/* Задачи */}
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 Задачи
               </Typography>
-              <Avatar sx={{ bgcolor: theme.palette.success.light, width: 32, height: 32 }}>
+              <Avatar sx={{ bgcolor: theme.palette.success.light, width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 } }}>
                 <AssignmentIcon fontSize="small" />
               </Avatar>
-            </Box>
-            <Typography variant="h5" component="div">
+            </Box>            <Typography variant="h5" component="div" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
               {dashboardData.activeTaskCount}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <AccessTimeIcon sx={{ color: 'warning.main', fontSize: '1rem' }} />
-              <Typography variant="body2" sx={{ ml: 0.5, color: 'warning.main' }}>
+              <AccessTimeIcon sx={{ color: 'warning.main', fontSize: { xs: '0.875rem', sm: '1rem' } }} />
+              <Typography variant="body2" sx={{ ml: 0.5, color: 'warning.main', fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                 {dashboardData.completedTaskCount} выполнено
               </Typography>
             </Box>
@@ -416,42 +424,45 @@ const Dashboard: React.FC = () => {
       </Grid>
       
       {/* Основные графики и списки */}
-      <Grid container spacing={3}>
-        {/* Диаграмма выручки */}
+      <Grid container spacing={3}>        {/* Диаграмма выручки */}
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: isMobile ? 2 : 3, height: '100%' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 Динамика выручки
               </Typography>
               <IconButton size="small">
                 <MoreVertIcon />
               </IconButton>
             </Box>
-            <Box sx={{ height: 300 }}>
+            <Box sx={{ height: { xs: 250, sm: 280, md: 300 } }}>
               <Bar options={revenueChartOptions} data={revenueChartData} />
             </Box>
           </Paper>
         </Grid>
-        
-        {/* Круговая диаграмма сделок */}
+          {/* Круговая диаграмма сделок */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: isMobile ? 2 : 3, height: '100%' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 Сделки по статусам
               </Typography>
               <IconButton size="small">
                 <MoreVertIcon />
               </IconButton>
             </Box>
-            <Box sx={{ height: 300, display: 'flex', justifyContent: 'center' }}>
-              <Doughnut options={dealsChartOptions} data={dealsChartData} />
+            <Box sx={{ height: { xs: 250, sm: 280, md: 300 }, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              {(dashboardData.dealsByStatus?.data?.length === 0 || !dashboardData.dealsByStatus?.data) ? (
+                <Typography variant="body2" color="text.secondary">
+                  Нет данных о сделках
+                </Typography>
+              ) : (
+                <Doughnut options={dealsChartOptions} data={dealsChartData} />
+              )}
             </Box>
           </Paper>
         </Grid>
-        
-        {/* Мобильные вкладки для контента */}
+            {/* Мобильные вкладки для контента */}
         {isMobile && (
           <Grid item xs={12}>
             <Paper sx={{ mb: 1 }}>
@@ -459,7 +470,15 @@ const Dashboard: React.FC = () => {
                 value={tabIndex}
                 onChange={handleTabChange}
                 variant="fullWidth"
-                sx={{ borderBottom: 1, borderColor: 'divider' }}
+                sx={{ 
+                  borderBottom: 1, 
+                  borderColor: 'divider', 
+                  minHeight: { xs: 42, sm: 48 },
+                  '& .MuiTab-root': {
+                    minHeight: { xs: 42, sm: 48 },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }
+                }}
               >
                 <Tab label="Задачи" />
                 <Tab label="Сделки" />
@@ -469,11 +488,10 @@ const Dashboard: React.FC = () => {
           </Grid>
         )}
         
-        {/* Активные задачи */}
-        <Grid item xs={12} md={4} sx={{ display: isMobile ? (tabIndex === 0 ? 'block' : 'none') : 'block' }}>
+        {/* Активные задачи */}          <Grid item xs={12} md={4} sx={{ display: isMobile ? (tabIndex === 0 ? 'block' : 'none') : 'block' }}>
           <Paper sx={{ p: 0, height: '100%' }}>
-            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 Активные задачи
               </Typography>
               <Button 
@@ -484,8 +502,7 @@ const Dashboard: React.FC = () => {
                 Все
               </Button>
             </Box>
-            <Divider />
-            {dashboardData.activeTasks.length === 0 ? (
+            <Divider />            {!dashboardData.activeTasks || dashboardData.activeTasks.length === 0 ? (
               <Box sx={{ p: 3, textAlign: 'center' }}>
                 <Typography variant="body2" color="text.secondary">
                   Нет активных задач
@@ -506,10 +523,9 @@ const Dashboard: React.FC = () => {
                         }}>
                           {task.priority === 'HIGH' ? '!' : task.priority === 'MEDIUM' ? '•' : '-'}
                         </Avatar>
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={task.title}
-                        secondary={`Срок: ${format(new Date(task.dueDate), 'dd.MM.yyyy')}`}
+                      </ListItemIcon>                      <ListItemText 
+                        primary={task.title || 'Без названия'}
+                        secondary={task.dueDate ? `Срок: ${format(new Date(task.dueDate), 'dd.MM.yyyy')}` : 'Срок не установлен'}
                         primaryTypographyProps={{
                           variant: 'body2',
                           fontWeight: 500,
@@ -533,11 +549,10 @@ const Dashboard: React.FC = () => {
             )}
           </Paper>
         </Grid>
-          {/* Предстоящие сделки */}
-        <Grid item xs={12} md={4} sx={{ display: isMobile ? (tabIndex === 1 ? 'block' : 'none') : 'block' }}>
+          {/* Предстоящие сделки */}          <Grid item xs={12} md={4} sx={{ display: isMobile ? (tabIndex === 1 ? 'block' : 'none') : 'block' }}>
           <Paper sx={{ p: 0, height: '100%' }}>
-            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 Предстоящие сделки
               </Typography>
               <Button 
@@ -586,8 +601,7 @@ const Dashboard: React.FC = () => {
                               }}
                             >
                               {deal.title}
-                            </Typography>
-                            <Typography 
+                            </Typography>                            <Typography 
                               variant="caption" 
                               sx={{ 
                                 fontWeight: 'bold',
@@ -599,7 +613,7 @@ const Dashboard: React.FC = () => {
                                 style: 'currency',
                                 currency: deal.currency || 'RUB',
                                 maximumFractionDigits: 0
-                              }).format(deal.amount)}
+                              }).format(deal.amount || 0)}
                             </Typography>
                           </Box>
                         }
@@ -640,11 +654,10 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
         
-        {/* Топ клиентов */}
-        <Grid item xs={12} md={4} sx={{ display: isMobile ? (tabIndex === 2 ? 'block' : 'none') : 'block' }}>
+        {/* Топ клиентов */}          <Grid item xs={12} md={4} sx={{ display: isMobile ? (tabIndex === 2 ? 'block' : 'none') : 'block' }}>
           <Paper sx={{ p: 0, height: '100%' }}>
-            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 Топ клиентов
               </Typography>
               <Button 
@@ -655,8 +668,7 @@ const Dashboard: React.FC = () => {
                 Все
               </Button>
             </Box>
-            <Divider />
-            {dashboardData.topClients.length === 0 ? (
+            <Divider />            {!dashboardData.topClients || dashboardData.topClients.length === 0 ? (
               <Box sx={{ p: 3, textAlign: 'center' }}>
                 <Typography variant="body2" color="text.secondary">
                   Нет данных о клиентах

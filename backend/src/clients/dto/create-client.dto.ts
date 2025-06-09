@@ -19,8 +19,11 @@ export class CreateClientDto {
   @ApiPropertyOptional({ description: 'Дополнительное описание или заметки' })
   @IsOptional()
   description?: string;
-
   @ApiPropertyOptional({ type: CreateClientCompanyDto, description: 'Данные о компании клиента' })
   @IsOptional()
   company?: CreateClientCompanyDto;
+
+  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'ID менеджера, ответственного за клиента' })
+  @IsOptional()
+  managerId?: string;
 }

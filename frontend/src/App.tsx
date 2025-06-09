@@ -15,6 +15,7 @@ import TaskDetails from './pages/TaskDetails';
 import Deals from './pages/Deals';
 import Tasks from './pages/Tasks';
 import Settings from './pages/Settings';
+import Users from './pages/Users';
 import NotFound from './pages/NotFound';
 import Login from './pages/auth/Login';
 import theme from './utils/theme';
@@ -34,12 +35,17 @@ const router = createBrowserRouter(
           children: [            { path: "/", element: <Dashboard /> },
             { path: "clients", element: <Clients /> },
             { path: "clients/:id", element: <ClientDetails /> },
-            { path: "deals", element: <Deals /> },
-            { path: "deals/:id", element: <DealDetails /> },
-            { path: "tasks", element: <Tasks /> },
+            { path: "deals", element: <Deals /> },            { path: "deals/:id", element: <DealDetails /> },            { path: "tasks", element: <Tasks /> },
             { path: "tasks/:id", element: <TaskDetails /> },
             { path: "tasks/new", element: <Tasks /> },
-            { path: "settings", element: <Settings /> }
+            { path: "settings", element: <Settings /> },            // Маршрут доступен только для администраторов
+            { 
+              path: "users",
+              element: <ProtectedRoute requiredRole="ADMIN" />,
+              children: [
+                { path: "", element: <Users /> }
+              ]
+            }
           ]
         }
       ]

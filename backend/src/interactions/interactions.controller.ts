@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { InteractionsService } from './interactions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -38,6 +38,13 @@ export class InteractionsController {
   @Get('client/:clientId')
   findByClient(@Param('clientId') clientId: string) {
     return this.interactionsService.findByClient(clientId);
+  }
+  @ApiOperation({ summary: 'Обновление взаимодействия' })
+  @ApiResponse({ status: 200, description: 'Взаимодействие обновлено' })
+  @ApiResponse({ status: 404, description: 'Взаимодействие не найдено' })
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateInteractionDto: any) {
+    return this.interactionsService.update(id, updateInteractionDto);
   }
 
   @ApiOperation({ summary: 'Удаление взаимодействия' })

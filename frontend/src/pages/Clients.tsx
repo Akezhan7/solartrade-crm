@@ -20,7 +20,17 @@ import {
   useMediaQuery,
   useTheme,
   Snackbar,
-  Alert
+  Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  SelectChangeEvent,
+  Tooltip,
+  Fab,
+  Chip,
+  Badge,
+  Container
 } from '@mui/material';
 import { DataGrid, GridColDef, GridValueGetterParams } from '@mui/x-data-grid';
 import SearchIcon from '@mui/icons-material/Search';
@@ -30,6 +40,8 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import EmailIcon from '@mui/icons-material/Email';
 import BusinessIcon from '@mui/icons-material/Business';
 import PersonIcon from '@mui/icons-material/Person';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../types';
 import apiService from '../utils/apiService';
@@ -38,12 +50,16 @@ const Clients: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isSmallMobile = useMediaQuery('(max-width:360px)');
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [openNewClientDialog, setOpenNewClientDialog] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [managers, setManagers] = useState<any[]>([]);
+  const [selectedManager, setSelectedManager] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
   
-  // Форма создания нового клиента
   const [newClient, setNewClient] = useState({
     name: '',
     phone: '',
@@ -55,7 +71,6 @@ const Clients: React.FC = () => {
     bankDetails: ''
   });
 
-  // Состояние для уведомлений
   const [notification, setNotification] = useState({
     open: false,
     message: '',
@@ -63,24 +78,56 @@ const Clients: React.FC = () => {
   });
 
   useEffect(() => {
+    const adminCheck = apiService.isAdmin();
+    setIsAdmin(adminCheck);
+    
+    if (adminCheck) {
+      fetchManagers();
+    }
+    
     fetchClients();
   }, []);
+  
+  const fetchManagers = async () => {
+    try {
+      const response = await apiService.getUsers();
+      const managerUsers = response.filter((user: any) => 
+        user.role === 'MANAGER' || user.role === 'ADMIN'
+      );
+      setManagers(managerUsers);
+    } catch (error) {
+      console.error('Error fetching managers:', error);
+      setNotification({
+        open: true,
+        message: 'Ошибка при загрузке списка менеджеров',
+        severity: 'error'
+      });
+    }
+  };
 
   const fetchClients = async () => {
     setLoading(true);
     try {
-      // Запрашиваем данные через API сервер
       const response = await apiService.getClients();
       setClients(response);
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching clients:', error);
       setLoading(false);
-      setNotification({
-        open: true,
-        message: 'Ошибка при загрузке данных клиентов с сервера',
-        severity: 'error'
-      });
+      
+      if (error.response && error.response.status === 403) {
+        setNotification({
+          open: true,
+          message: 'У вас нет доступа к просмотру этих клиентов',
+          severity: 'warning'
+        });
+      } else {
+        setNotification({
+          open: true,
+          message: 'Ошибка при загрузке данных клиентов с сервера',
+          severity: 'error'
+        });
+      }
     }
   };
 
@@ -88,13 +135,38 @@ const Clients: React.FC = () => {
     setSearchTerm(event.target.value);
   };
 
+  const handleManagerFilterChange = (event: SelectChangeEvent<string>) => {
+    setSelectedManager(event.target.value);
+  };
+
+  const getFilteredClients = () => {
+    let filtered = clients;
+    
+    if (searchTerm.trim() !== '') {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(client => 
+        client.name.toLowerCase().includes(search) || 
+        client.phone.toLowerCase().includes(search) || 
+        client.email.toLowerCase().includes(search) ||
+        (client.company && client.company.name.toLowerCase().includes(search))
+      );
+    }
+    
+    if (isAdmin && selectedManager !== 'all') {
+      filtered = filtered.filter(client => client.managerId === selectedManager);
+    }
+    
+    return filtered;
+  };
+
+  const filteredClients = getFilteredClients();
+
   const handleOpenNewClientDialog = () => {
     setOpenNewClientDialog(true);
   };
 
   const handleCloseNewClientDialog = () => {
     setOpenNewClientDialog(false);
-    // Сброс формы
     setNewClient({
       name: '',
       phone: '',
@@ -115,7 +187,6 @@ const Clients: React.FC = () => {
   };
 
   const handleCreateClient = async () => {
-    // Проверка обязательных полей
     if (!newClient.name || !newClient.phone || !newClient.email) {
       setNotification({
         open: true,
@@ -125,36 +196,26 @@ const Clients: React.FC = () => {
       return;
     }
 
-    // Подготовка данных для создания клиента
     const clientData: any = {
       name: newClient.name,
       phone: newClient.phone,
       email: newClient.email
     };
 
-    // Если есть данные о компании, добавляем их
     if (newClient.companyName) {
       clientData.company = {
         name: newClient.companyName,
-        inn: newClient.inn,
-        kpp: newClient.kpp || undefined,
-        address: newClient.address,
-        bankDetails: newClient.bankDetails || undefined
+        inn: newClient.inn || '',
+        kpp: newClient.kpp || '',
+        address: newClient.address || '',
+        bankDetails: newClient.bankDetails || ''
       };
     }
 
     try {
-      setLoading(true);
-      // Создаем клиента через API
-      const createdClient = await apiService.createClient(clientData);
-      
-      // Обновляем список клиентов
-      setClients([...clients, createdClient]);
-      
-      // Закрываем диалог
+      await apiService.createClient(clientData);
       handleCloseNewClientDialog();
-      
-      // Показываем уведомление об успехе
+      fetchClients();
       setNotification({
         open: true,
         message: 'Клиент успешно создан',
@@ -167,116 +228,210 @@ const Clients: React.FC = () => {
         message: 'Ошибка при создании клиента',
         severity: 'error'
       });
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleCloseNotification = () => {
+    setNotification({
+      ...notification,
+      open: false
+    });
   };
 
   const handleViewClient = (id: string) => {
     navigate(`/clients/${id}`);
   };
 
-  // Фильтрация клиентов по поисковому запросу
-  const filteredClients = clients.filter(client => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      client.name.toLowerCase().includes(searchLower) ||
-      client.phone.toLowerCase().includes(searchLower) ||
-      client.email.toLowerCase().includes(searchLower) ||
-      (client.company?.name && client.company.name.toLowerCase().includes(searchLower)) ||
-      (client.company?.inn && client.company.inn.toLowerCase().includes(searchLower))
-    );
-  });
+  const handleCallClient = (phone: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    window.location.href = `tel:${phone}`;
+  };
 
-  // Колонки для таблицы клиентов
+  const handleEmailClient = (email: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    window.location.href = `mailto:${email}`;
+  };
+
   const columns: GridColDef[] = [
-    {
-      field: 'name',
-      headerName: 'Имя/название',
-      flex: 1,
-      minWidth: 200,
+    { 
+      field: 'name', 
+      headerName: 'Имя/Название', 
+      width: 250,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {params.row.company ? (
+            <BusinessIcon sx={{ mr: 1, color: 'primary.main' }} />
+          ) : (
+            <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
+          )}
+          <Typography variant="body1">{params.value}</Typography>
+        </Box>
+      )
     },
-    {
-      field: 'phone',
-      headerName: 'Телефон',
-      flex: 0.8,
-      minWidth: 150,
+    { 
+      field: 'phone', 
+      headerName: 'Телефон', 
+      width: 150,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography variant="body2">{params.value}</Typography>
+          <IconButton
+            size="small"
+            onClick={(e) => handleCallClient(params.value, e)}
+            sx={{ ml: 1 }}
+          >
+            <PhoneIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Box>
+      )
     },
-    {
-      field: 'email',
-      headerName: 'Email',
-      flex: 0.8,
-      minWidth: 180,
+    { 
+      field: 'email', 
+      headerName: 'Email', 
+      width: 200,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography variant="body2">{params.value}</Typography>
+          <IconButton
+            size="small"
+            onClick={(e) => handleEmailClient(params.value, e)}
+            sx={{ ml: 1 }}
+          >
+            <EmailIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Box>
+      )
     },
-    {
-      field: 'companyName',
-      headerName: 'Компания',
-      flex: 0.8,
-      minWidth: 180,
+    { 
+      field: 'company', 
+      headerName: 'Компания', 
+      width: 200,
       valueGetter: (params: GridValueGetterParams) => 
         params.row.company ? params.row.company.name : '',
     },
     {
       field: 'actions',
       headerName: 'Действия',
-      flex: 0.4,
-      minWidth: 100,
-      sortable: false,
-      filterable: false,
+      width: 100,
       renderCell: (params) => (
-        <IconButton 
-          color="primary" 
-          onClick={() => handleViewClient(params.row.id)}
-        >
-          <VisibilityIcon />
-        </IconButton>
+        <Box>
+          <IconButton 
+            onClick={() => handleViewClient(params.row.id)}
+            size="small"
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Box>
       ),
     },
   ];
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>
-        Клиенты
-      </Typography>
-
-      <Box sx={{ mb: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-        <TextField
-          label="Поиск клиентов"
-          variant="outlined"
-          size="small"
-          fullWidth={isMobile}
-          value={searchTerm}
-          onChange={handleSearchChange}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+    <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          mb: 2,
+          flexDirection: isMobile ? 'column' : 'row',
+        }}
+      >
+        <Typography 
+          variant="h5" 
+          sx={{ 
+            mb: isMobile ? 2 : 0,
+            fontWeight: 500,
+            fontSize: { xs: '1.5rem', sm: '1.8rem' } 
           }}
-          sx={{ flexGrow: 1, maxWidth: { sm: 300 } }}
-        />
-        
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleOpenNewClientDialog}
         >
-          Новый клиент
-        </Button>
+          Клиенты
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, width: isMobile ? '100%' : 'auto' }}>
+          {isAdmin && (
+            <Button 
+              variant="outlined" 
+              color="primary" 
+              onClick={() => setShowFilters(!showFilters)}
+              startIcon={<FilterListIcon />}
+              sx={{
+                display: { xs: 'none', sm: 'flex' }
+              }}
+            >
+              Фильтры
+            </Button>
+          )}
+          {isAdmin && isMobile && (
+            <IconButton onClick={() => setShowFilters(!showFilters)} color="primary">
+              <FilterListIcon />
+            </IconButton>
+          )}
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={isMobile ? null : <AddIcon />}
+            onClick={handleOpenNewClientDialog}
+            sx={{ 
+              flexGrow: isMobile ? 1 : 0,
+              minWidth: isSmallMobile ? 'initial' : '150px',
+              px: isSmallMobile ? 1 : 2
+            }}
+          >
+            {isMobile ? <AddIcon /> : 'Новый клиент'}
+          </Button>
+        </Box>
       </Box>
 
-      <Paper sx={{ height: 'calc(100vh - 220px)', width: '100%' }}>
+      <Box sx={{ mb: 2 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm>
+            <TextField
+              fullWidth
+              placeholder="Поиск по имени, телефону или email..."
+              variant="outlined"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              size={isMobile ? "small" : "medium"}
+            />
+          </Grid>
+          
+          {isAdmin && showFilters && (
+            <Grid item xs={12} sm={3}>
+              <FormControl fullWidth size={isMobile ? "small" : "medium"}>
+                <InputLabel id="manager-filter-label">Менеджер</InputLabel>
+                <Select
+                  labelId="manager-filter-label"
+                  id="manager-filter"
+                  value={selectedManager}
+                  label="Менеджер"
+                  onChange={handleManagerFilterChange}
+                >
+                  <MenuItem value="all">Все менеджеры</MenuItem>
+                  {managers.map((manager) => (
+                    <MenuItem key={manager.id} value={manager.id}>{manager.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+        </Grid>
+      </Box>
+
+      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
             <CircularProgress />
           </Box>
         ) : (
           <>
             {isMobile ? (
-              // Мобильный вид - карточки
               <Box sx={{ p: 1 }}>
                 {filteredClients.length === 0 ? (
                   <Typography variant="body1" sx={{ p: 2, textAlign: 'center' }}>
@@ -285,37 +440,85 @@ const Clients: React.FC = () => {
                 ) : (
                   <Stack spacing={2}>
                     {filteredClients.map((client) => (
-                      <Card key={client.id} sx={{ cursor: 'pointer' }} onClick={() => handleViewClient(client.id)}>
-                        <CardContent>
+                      <Card key={client.id} sx={{ cursor: 'pointer', borderRadius: '8px' }} onClick={() => handleViewClient(client.id)}>
+                        <CardContent sx={{ p: '12px' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                             {client.company ? (
                               <BusinessIcon sx={{ mr: 1, color: 'primary.main' }} />
                             ) : (
                               <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
                             )}
-                            <Typography variant="h6">{client.name}</Typography>
+                            <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 500 }}>
+                              {client.name}
+                            </Typography>
                           </Box>
                           
-                          <Divider sx={{ my: 1 }} />
+                          <Divider sx={{ my: 0.5 }} />
                           
-                          <Stack spacing={1}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <PhoneIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                              <Typography variant="body2">{client.phone}</Typography>
-                            </Box>
+                          <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                            <Grid item xs={12}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <PhoneIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
+                                  <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>{client.phone}</Typography>
+                                </Box>
+                                <IconButton 
+                                  size="small" 
+                                  onClick={(e) => handleCallClient(client.phone, e)}
+                                  sx={{ p: 0.5 }}
+                                >
+                                  <PhoneIcon fontSize="small" color="primary" />
+                                </IconButton>
+                              </Box>
+                            </Grid>
                             
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <EmailIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                              <Typography variant="body2">{client.email}</Typography>
-                            </Box>
+                            <Grid item xs={12}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <EmailIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      fontSize: '0.875rem',
+                                      maxWidth: '180px', 
+                                      overflow: 'hidden', 
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap' 
+                                    }}
+                                  >
+                                    {client.email}
+                                  </Typography>
+                                </Box>
+                                <IconButton 
+                                  size="small" 
+                                  onClick={(e) => handleEmailClient(client.email, e)}
+                                  sx={{ p: 0.5 }}
+                                >
+                                  <EmailIcon fontSize="small" color="primary" />
+                                </IconButton>
+                              </Box>
+                            </Grid>
                             
                             {client.company && (
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <BusinessIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                                <Typography variant="body2">{client.company.name}</Typography>
-                              </Box>
+                              <Grid item xs={12}>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <BusinessIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      fontSize: '0.875rem',
+                                      maxWidth: '220px', 
+                                      overflow: 'hidden', 
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap' 
+                                    }}
+                                  >
+                                    {client.company.name}
+                                  </Typography>
+                                </Box>
+                              </Grid>
                             )}
-                          </Stack>
+                          </Grid>
                         </CardContent>
                       </Card>
                     ))}
@@ -323,7 +526,6 @@ const Clients: React.FC = () => {
                 )}
               </Box>
             ) : (
-              // Десктопный вид - таблица
               <DataGrid
                 rows={filteredClients}
                 columns={columns}
@@ -344,9 +546,46 @@ const Clients: React.FC = () => {
         )}
       </Paper>
 
-      {/* Диалог создания нового клиента */}
-      <Dialog open={openNewClientDialog} onClose={handleCloseNewClientDialog} maxWidth="md" fullWidth>
-        <DialogTitle>Создание нового клиента</DialogTitle>
+      {isMobile && (
+        <Fab 
+          color="primary" 
+          aria-label="Новый клиент" 
+          onClick={handleOpenNewClientDialog}
+          sx={{ 
+            position: 'fixed', 
+            bottom: 16, 
+            right: 16,
+            display: { xs: 'none', sm: 'flex' }
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      )}
+
+      <Dialog 
+        open={openNewClientDialog} 
+        onClose={handleCloseNewClientDialog} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>
+          {isMobile ? (
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <IconButton 
+                edge="start" 
+                color="inherit" 
+                onClick={handleCloseNewClientDialog}
+                sx={{ mr: 1 }}
+              >
+                <ChevronLeftIcon />
+              </IconButton>
+              <Typography variant="h6">Новый клиент</Typography>
+            </Box>
+          ) : (
+            "Создание нового клиента"
+          )}
+        </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
@@ -364,6 +603,7 @@ const Clients: React.FC = () => {
                 value={newClient.name}
                 onChange={(e) => handleNewClientChange('name', e.target.value)}
                 placeholder="Например: ООО 'Солнечный дом' или 'Иванов Иван'"
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
@@ -376,6 +616,7 @@ const Clients: React.FC = () => {
                 value={newClient.phone}
                 onChange={(e) => handleNewClientChange('phone', e.target.value)}
                 placeholder="+7 (XXX) XXX-XX-XX"
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
@@ -385,26 +626,28 @@ const Clients: React.FC = () => {
                 variant="outlined"
                 fullWidth
                 required
-                type="email"
                 value={newClient.email}
                 onChange={(e) => handleNewClientChange('email', e.target.value)}
+                placeholder="example@mail.com"
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
-            <Grid item xs={12} sx={{ mt: 2 }}>
-              <Divider />
-              <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle1" gutterBottom>
                 Информация о компании (необязательно)
               </Typography>
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 label="Название компании"
                 variant="outlined"
                 fullWidth
                 value={newClient.companyName}
                 onChange={(e) => handleNewClientChange('companyName', e.target.value)}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
@@ -415,6 +658,7 @@ const Clients: React.FC = () => {
                 fullWidth
                 value={newClient.inn}
                 onChange={(e) => handleNewClientChange('inn', e.target.value)}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
@@ -425,16 +669,18 @@ const Clients: React.FC = () => {
                 fullWidth
                 value={newClient.kpp}
                 onChange={(e) => handleNewClientChange('kpp', e.target.value)}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
-                label="Юридический адрес"
+                label="Адрес"
                 variant="outlined"
                 fullWidth
                 value={newClient.address}
                 onChange={(e) => handleNewClientChange('address', e.target.value)}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
@@ -447,26 +693,34 @@ const Clients: React.FC = () => {
                 rows={2}
                 value={newClient.bankDetails}
                 onChange={(e) => handleNewClientChange('bankDetails', e.target.value)}
-                placeholder="Например: р/с 40702810123456789012 в ПАО 'Сбербанк'"
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseNewClientDialog}>Отмена</Button>
-          <Button variant="contained" onClick={handleCreateClient}>Создать</Button>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+          <Button onClick={handleCloseNewClientDialog} color="inherit">
+            Отмена
+          </Button>
+          <Button 
+            onClick={handleCreateClient} 
+            variant="contained" 
+            color="primary"
+            disabled={!newClient.name || !newClient.phone || !newClient.email}
+          >
+            Создать
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Уведомления */}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={6000}
-        onClose={() => setNotification({ ...notification, open: false })}
+      <Snackbar 
+        open={notification.open} 
+        autoHideDuration={6000} 
+        onClose={handleCloseNotification}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert 
-          onClose={() => setNotification({ ...notification, open: false })} 
+          onClose={handleCloseNotification} 
           severity={notification.severity} 
           sx={{ width: '100%' }}
         >

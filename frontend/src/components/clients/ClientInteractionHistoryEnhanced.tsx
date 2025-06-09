@@ -80,60 +80,6 @@ interface ExtendedInteraction extends Interaction {
   updatedAt: string;
 }
 
-// Тестовые данные для истории взаимодействий
-const mockInteractions: ExtendedInteraction[] = [
-  {
-    id: '1',
-    type: 'CALL' as InteractionType,
-    content: 'Созвонились с клиентом по поводу нового заказа. Клиент интересуется солнечными панелями для загородного дома.',
-    clientId: '1',
-    createdById: '1',
-    createdAt: '2025-05-04T10:30:00Z',
-    updatedAt: '2025-05-04T10:30:00Z',
-    createdBy: 'Иван Иванов'
-  },
-  {
-    id: '2',
-    type: 'EMAIL' as InteractionType,
-    content: 'Отправил коммерческое предложение на поставку 5 солнечных панелей и инвертора.',
-    clientId: '1',
-    createdById: '1',
-    createdAt: '2025-05-04T14:20:00Z',
-    updatedAt: '2025-05-04T14:20:00Z',
-    createdBy: 'Иван Иванов'
-  },
-  {
-    id: '3',
-    type: 'DEAL' as InteractionType,
-    content: 'Создана новая сделка: Поставка оборудования для солнечной электростанции',
-    clientId: '1',
-    createdById: '0',
-    createdAt: '2025-05-05T11:00:00Z',
-    updatedAt: '2025-05-05T11:00:00Z',
-    createdBy: 'Система'
-  },
-  {
-    id: '4',
-    type: 'NOTE' as InteractionType,
-    content: 'Клиент просил перезвонить на следующей неделе для обсуждения сроков поставки.',
-    clientId: '1',
-    createdById: '2',
-    createdAt: '2025-05-05T16:45:00Z',
-    updatedAt: '2025-05-05T16:45:00Z',
-    createdBy: 'Петр Петров'
-  },
-  {
-    id: '5',
-    type: 'TASK' as InteractionType,
-    content: 'Создана задача: Подготовить документы для договора с клиентом',
-    clientId: '1',
-    createdById: '0',
-    createdAt: '2025-05-06T09:15:00Z',
-    updatedAt: '2025-05-06T09:15:00Z',
-    createdBy: 'Система'
-  }
-];
-
 interface ClientInteractionHistoryProps {
   clientId: string;
 }
@@ -169,30 +115,29 @@ const ClientInteractionHistoryEnhanced: React.FC<ClientInteractionHistoryProps> 
   // Получаем тему и медиа-запросы
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
   // Загрузка данных при монтировании компонента
   useEffect(() => {
     const fetchInteractions = async () => {
       setLoading(true);
       try {
-        // В реальном приложении здесь будет запрос к API
-        // const response = await apiService.getClientInteractions(clientId);
-        // setInteractions(response);
+        // Получаем данные с API
+        const response = await apiService.getInteractions(clientId);
         
-        // Фильтруем взаимодействия для текущего клиента
-        const filteredInteractions = mockInteractions.filter(
-          interaction => interaction.clientId === clientId
-        );
+        // Преобразуем данные для совместимости с интерфейсом ExtendedInteraction
+        const extendedInteractions: ExtendedInteraction[] = response.map((interaction: any) => ({
+          ...interaction,
+          createdBy: interaction.createdBy?.name || 'Система',
+          createdById: interaction.createdById || interaction.createdBy?.id || '',
+          updatedAt: interaction.updatedAt || interaction.createdAt
+        }));
         
         // Сортируем взаимодействия по дате (новые вверху)
-        const sortedInteractions = filteredInteractions.sort(
+        const sortedInteractions = extendedInteractions.sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         
-        setTimeout(() => {
-          setInteractions(sortedInteractions);
-          setLoading(false);
-        }, 500); // Искусственная задержка для демонстрации загрузки
+        setInteractions(sortedInteractions);
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching interactions:', error);
         setLoading(false);
@@ -226,7 +171,6 @@ const ClientInteractionHistoryEnhanced: React.FC<ClientInteractionHistoryProps> 
       [field]: value
     });
   };
-
   const handleCreateInteraction = async () => {
     try {
       // Добавление индикатора загрузки
@@ -234,19 +178,24 @@ const ClientInteractionHistoryEnhanced: React.FC<ClientInteractionHistoryProps> 
       
       // Если это редактирование существующего взаимодействия
       if (editingInteraction) {
-        // В реальном приложении здесь будет запрос к API для обновления
-        // const response = await apiService.updateInteraction(editingInteraction.id, newInteraction);
+        // Отправляем запрос к API для обновления
+        const updateData = {
+          type: newInteraction.type,
+          content: newInteraction.content
+        };
         
-        // Обновляем взаимодействие локально
+        const response = await apiService.updateInteraction(editingInteraction.id, updateData);
+          // Обновляем взаимодействие локально
+        const updatedInteraction = {
+          ...editingInteraction,
+          ...response,
+          type: response.type,
+          content: response.content,
+          updatedAt: response.updatedAt || new Date().toISOString()
+        };
+        
         const updatedInteractions = interactions.map(interaction => 
-          interaction.id === editingInteraction.id 
-            ? { 
-                ...interaction, 
-                type: newInteraction.type, 
-                content: newInteraction.content,
-                updatedAt: new Date().toISOString()
-              } 
-            : interaction
+          interaction.id === editingInteraction.id ? updatedInteraction : interaction
         );
         
         setInteractions(updatedInteractions);
@@ -256,21 +205,24 @@ const ClientInteractionHistoryEnhanced: React.FC<ClientInteractionHistoryProps> 
           severity: 'success'
         });
       } else {
-        // В реальном приложении здесь будет запрос к API для создания записи
-        // const response = await apiService.createInteraction(clientId, newInteraction);
-        
-        // Добавляем запись локально
-        const interaction = {
-          id: `mock-${Date.now()}`,
-          ...newInteraction,
-          clientId,
-          createdById: '1',
-          createdBy: 'Текущий пользователь',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+        // Отправляем запрос к API для создания записи
+        const createData = {
+          type: newInteraction.type,
+          content: newInteraction.content,
+          clientId
         };
         
-        setInteractions([interaction, ...interactions]);
+        const response = await apiService.createInteraction(createData);
+        
+        // Добавляем полученную с сервера запись в начало списка
+        const newInteractionWithUser = {
+          ...response,
+          createdBy: response.createdBy?.name || 'Текущий пользователь',
+          createdById: response.createdById || response.createdBy?.id || '',
+          updatedAt: response.updatedAt || response.createdAt
+        };
+        
+        setInteractions([newInteractionWithUser, ...interactions]);
         setSnackbar({
           open: true,
           message: 'Взаимодействие успешно добавлено',
@@ -310,15 +262,14 @@ const ClientInteractionHistoryEnhanced: React.FC<ClientInteractionHistoryProps> 
       interactionId
     });
   };
-  
-  // Функция для подтверждения удаления
+    // Функция для подтверждения удаления
   const confirmDeleteInteraction = async () => {
     try {
       // Добавление индикатора загрузки
       setLoading(true);
       
-      // В реальном приложении здесь будет запрос к API для удаления
-      // await apiService.deleteInteraction(deleteConfirmDialog.interactionId);
+      // Отправляем запрос к API для удаления
+      await apiService.deleteInteraction(deleteConfirmDialog.interactionId);
       
       // Удаляем запись локально
       const updatedInteractions = interactions.filter(

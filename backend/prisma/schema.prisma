@@ -12,18 +12,19 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  name      String
-  position  String?
-  password  String
-  role      UserRole  @default(SALES)
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  tasks     Task[]    @relation("TaskAssignee")
-  deals     Deal[]    @relation("DealManager")
-  createdTasks Task[] @relation("TaskCreator")
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  position     String?
+  password     String
+  role         UserRole @default(SALES)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  tasks        Task[]   @relation("TaskAssignee")
+  deals        Deal[]   @relation("DealManager")
+  clients      Client[] @relation("ClientManager")
+  createdTasks Task[]   @relation("TaskCreator")
 
   @@map("users")
 }
@@ -35,15 +36,18 @@ enum UserRole {
 }
 
 model Client {
-  id           String        @id @default(uuid())
+  id           String         @id @default(uuid())
   name         String
   phone        String
   email        String
   description  String?
-  companyId    String?       @unique @map("company_id")
+  companyId    String?        @unique @map("company_id")
   company      ClientCompany? @relation(fields: [companyId], references: [id])
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  contacts     Contact[]
+  managerId    String         @map("manager_id")
+  manager      User           @relation("ClientManager", fields: [managerId], references: [id])
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
   tasks        Task[]
   deals        Deal[]
   interactions Interaction[]
@@ -51,13 +55,30 @@ model Client {
   @@map("clients")
 }
 
+model Contact {
+  id        String    @id @default(uuid())
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  phone     String?
+  email     String?
+  birthDate DateTime? @map("birth_date")
+  position  String?
+  notes     String?
+  clientId  String    @map("client_id")
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("client_contacts")
+}
+
 model ClientCompany {
-  id          String  @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   inn         String
   kpp         String?
   address     String
-  bankDetails String? @map("bank_details")
+  bankDetails String?  @map("bank_details")
   client      Client?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -66,25 +87,25 @@ model ClientCompany {
 }
 
 model Deal {
-  id                  String     @id @default(uuid())
-  title               String
-  description         String?
-  amount              Decimal    @default(0) @db.Decimal(10, 2)
-  currency            String     @default("RUB")
-  status              DealStatus @default(NEW)
-  clientId            String     @map("client_id")
-  client              Client     @relation(fields: [clientId], references: [id])
-  managerId           String     @map("manager_id")
-  manager             User       @relation("DealManager", fields: [managerId], references: [id])
+  id                   String     @id @default(uuid())
+  title                String
+  description          String?
+  amount               Decimal    @default(0) @db.Decimal(10, 2)
+  currency             String     @default("RUB")
+  status               DealStatus @default(NEW)
+  clientId             String     @map("client_id")
+  client               Client     @relation(fields: [clientId], references: [id])
+  managerId            String     @map("manager_id")
+  manager              User       @relation("DealManager", fields: [managerId], references: [id])
   estimatedClosingDate DateTime?  @map("estimated_closing_date")
-  actualClosingDate   DateTime?  @map("actual_closing_date")
-  productInfo         String?    @map("product_info")
-  probability         Int        @default(50)
-  source              String?
-  createdById         String     @map("created_by_id")
-  createdAt           DateTime   @default(now()) @map("created_at")
-  updatedAt           DateTime   @updatedAt @map("updated_at")
-  tasks               Task[]
+  actualClosingDate    DateTime?  @map("actual_closing_date")
+  productInfo          String?    @map("product_info")
+  probability          Int        @default(50)
+  source               String?
+  createdById          String     @map("created_by_id")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+  tasks                Task[]
 
   @@map("deals")
 }
@@ -101,23 +122,23 @@ enum DealStatus {
 }
 
 model Task {
-  id          String     @id @default(uuid())
+  id          String       @id @default(uuid())
   title       String
   description String?
-  status      TaskStatus @default(NEW)
-  priority    TaskPriority @default(MEDIUM) 
-  dueDate     DateTime   @map("due_date")
-  assigneeId  String     @map("assignee_id")
-  assignee    User       @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  clientId    String?    @map("client_id")
-  client      Client?    @relation(fields: [clientId], references: [id])
-  dealId      String?    @map("deal_id")
-  deal        Deal?      @relation(fields: [dealId], references: [id])
-  createdById String     @map("created_by_id")
-  createdBy   User       @relation("TaskCreator", fields: [createdById], references: [id])
-  completedAt DateTime?  @map("completed_at")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  status      TaskStatus   @default(NEW)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime     @map("due_date")
+  assigneeId  String       @map("assignee_id")
+  assignee    User         @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  clientId    String?      @map("client_id")
+  client      Client?      @relation(fields: [clientId], references: [id])
+  dealId      String?      @map("deal_id")
+  deal        Deal?        @relation(fields: [dealId], references: [id])
+  createdById String       @map("created_by_id")
+  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
+  completedAt DateTime?    @map("completed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@map("tasks")
 }
@@ -137,14 +158,14 @@ enum TaskPriority {
 }
 
 model Interaction {
-  id          String        @id @default(uuid())
+  id          String   @id @default(uuid())
   type        String
   content     String
-  clientId    String        @map("client_id")
-  client      Client        @relation(fields: [clientId], references: [id])
-  createdById String        @map("created_by_id")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  clientId    String   @map("client_id")
+  client      Client   @relation(fields: [clientId], references: [id])
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("interactions")
 }
@@ -154,7 +175,7 @@ model TelegramSettings {
   botToken            String?  @map("bot_token")
   chatId              String?  @map("chat_id")
   notifyNewClients    Boolean  @default(true) @map("notify_new_clients")
-  notifyNewDeals      Boolean  @default(true) @map("notify_new_deals") 
+  notifyNewDeals      Boolean  @default(true) @map("notify_new_deals")
   notifyNewTasks      Boolean  @default(true) @map("notify_new_tasks")
   notifyTaskDeadlines Boolean  @default(true) @map("notify_task_deadlines")
   taskReminderHours   Int[]    @default([24, 8, 2]) @map("task_reminder_hours")

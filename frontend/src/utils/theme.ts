@@ -1,8 +1,8 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, responsiveFontSizes } from '@mui/material/styles';
 import { ruRU } from '@mui/material/locale';
 
 // Создание собственной темы
-const theme = createTheme(
+let theme = createTheme(
   {
     palette: {
       primary: {
@@ -47,29 +47,30 @@ const theme = createTheme(
         'sans-serif',
       ].join(','),
       h1: {
-        fontSize: '2.5rem',
         fontWeight: 500
       },
       h2: {
-        fontSize: '2rem',
         fontWeight: 500
       },
       h3: {
-        fontSize: '1.75rem',
         fontWeight: 500
       },
       h4: {
-        fontSize: '1.5rem',
         fontWeight: 500
       },
       h5: {
-        fontSize: '1.25rem',
         fontWeight: 500
       },
       h6: {
-        fontSize: '1rem',
         fontWeight: 500
-      }
+      },
+      // Адаптивный размер текста для мобильных устройств
+      body1: {
+        fontSize: '1rem',
+      },
+      body2: {
+        fontSize: '0.875rem',
+      },
     },
     shape: {
       borderRadius: 8
@@ -79,13 +80,28 @@ const theme = createTheme(
         styleOverrides: {
           root: {
             textTransform: 'none',
-            fontWeight: 500
+            fontWeight: 500,
+            // Уменьшение отступов для мобильных устройств
+            '@media (max-width:600px)': {
+              padding: '6px 12px',
+            },
           },
           containedPrimary: {
             '&:hover': {
               backgroundColor: '#1976d2'
             }
-          }
+          },
+          // Оптимизация для маленьких экранов
+          sizeSmall: {
+            padding: '4px 10px',
+            fontSize: '0.8125rem',
+          },
+          sizeLarge: {
+            '@media (max-width:600px)': {
+              padding: '8px 16px',
+              fontSize: '0.9375rem',
+            },
+          },
         }
       },
       MuiPaper: {
@@ -99,7 +115,10 @@ const theme = createTheme(
         styleOverrides: {
           root: {
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-            transition: 'box-shadow 0.3s ease-in-out'
+            transition: 'box-shadow 0.3s ease-in-out',
+            '@media (max-width:600px)': {
+              borderRadius: '6px',
+            },
           }
         }
       },
@@ -108,6 +127,12 @@ const theme = createTheme(
           head: {
             fontWeight: 600,
             backgroundColor: '#f5f5f5'
+          },
+          // Уменьшение отступов в таблицах для мобильных устройств
+          root: {
+            '@media (max-width:600px)': {
+              padding: '8px 6px',
+            },
           }
         }
       },
@@ -121,13 +146,76 @@ const theme = createTheme(
       MuiChip: {
         styleOverrides: {
           root: {
-            fontWeight: 500
-          }
+            fontWeight: 500,
+            // Уменьшение размеров для мобильных устройств
+            '@media (max-width:600px)': {
+              height: '28px',
+              fontSize: '0.75rem',
+            },
+          },
+          // Уменьшение отступов для мобильных устройств
+          label: {
+            '@media (max-width:600px)': {
+              paddingLeft: '10px',
+              paddingRight: '10px',
+            },
+          },
         }
-      }
+      },
+      MuiDialog: {
+        styleOverrides: {
+          // Улучшение адаптивности диалогов
+          paper: {
+            '@media (max-width:600px)': {
+              margin: '12px',
+              width: 'calc(100% - 24px)',
+              maxHeight: 'calc(100% - 24px)',
+            },
+          },
+        }
+      },
+      MuiDialogTitle: {
+        styleOverrides: {
+          root: {
+            '@media (max-width:600px)': {
+              padding: '16px',
+            },
+          },
+        }
+      },
+      MuiDialogContent: {
+        styleOverrides: {
+          root: {
+            '@media (max-width:600px)': {
+              padding: '8px 16px',
+            },
+          },
+        }
+      },
+      MuiDialogActions: {
+        styleOverrides: {
+          root: {
+            '@media (max-width:600px)': {
+              padding: '8px 16px',
+            },
+          },
+        }
+      },
+      MuiTextField: {
+        styleOverrides: {
+          root: {
+            '@media (max-width:600px)': {
+              marginBottom: '8px',
+            },
+          },
+        }
+      },
     }
   },
   ruRU // Добавляем русскую локализацию
 );
+
+// Применяем адаптивные размеры шрифтов
+theme = responsiveFontSizes(theme);
 
 export default theme;

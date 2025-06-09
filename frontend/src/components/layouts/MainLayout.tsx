@@ -18,7 +18,9 @@ import {
   Tooltip,
   Badge,
   useMediaQuery,
-  useTheme
+  useTheme,
+  SwipeableDrawer,
+  Backdrop
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -55,6 +57,8 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
   [theme.breakpoints.down('sm')]: {
     marginLeft: 0,
     padding: theme.spacing(2, 1),
+    paddingTop: theme.spacing(1),
+    width: '100%',
   },
 }));
 
@@ -80,6 +84,7 @@ const AppBarStyled = styled(AppBar, {
   [theme.breakpoints.down('sm')]: {
     width: '100%',
     marginLeft: 0,
+    zIndex: theme.zIndex.drawer + 2,
   },
 }));
 
@@ -108,6 +113,7 @@ const menuOptions: MenuOption[] = [
 interface User {
   id: string;
   name: string;
+  role?: string;
 }
 
 const MainLayout: React.FC = () => {
@@ -119,6 +125,10 @@ const MainLayout: React.FC = () => {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  // Добавляем пункт "Пользователи" только для администратора
+  const isAdmin = user?.role === 'ADMIN';
   
   // Получение данных пользователя
   useEffect(() => {
@@ -192,36 +202,40 @@ const MainLayout: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <AppBarStyled position="fixed" open={open}>
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            onClick={handleDrawerOpen}
-            edge="start"
-            sx={{ mr: 2, ...( open && !isMobile && { display: 'none' }) }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography 
-            variant="h6" 
-            noWrap 
-            component="div" 
-            sx={{ 
-              flexGrow: 1,
-              fontSize: { xs: '1.1rem', sm: '1.25rem' }
-            }}
-          >
-            SolarTrade CRM
-          </Typography>
+      <AppBarStyled position="fixed" open={!isMobile && open}>
+        <Toolbar sx={{ justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              onClick={handleDrawerOpen}
+              edge="start"
+              sx={{ mr: 1, ...(open && !isMobile && { display: 'none' }) }}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Typography 
+              variant="h6" 
+              noWrap 
+              component="div" 
+              sx={{ 
+                fontSize: { xs: '1rem', sm: '1.25rem' },
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              {isSmallScreen ? 'SolarTrade' : 'SolarTrade CRM'}
+            </Typography>
+          </Box>
           
-          {/* Иконка уведомлений */}
-          <Box sx={{ mr: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {/* Иконка уведомлений */}
             <IconButton
               size="large"
-              aria-label="показать 3 новых уведомления"
+              aria-label="показать новые уведомления"
               color="inherit"
               onClick={handleOpenNotificationsMenu}
+              sx={{ mr: { xs: 0.5, sm: 1 } }}
             >
               <Badge badgeContent={3} color="error">
                 <NotificationsIcon />
@@ -262,13 +276,11 @@ const MainLayout: React.FC = () => {
                 />
               </MenuItem>
             </Menu>
-          </Box>
 
-          {/* Меню пользователя */}
-          <Box>
+            {/* Меню пользователя */}
             <Tooltip title="Открыть настройки">
-              <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-                <Avatar alt={user?.name || 'Пользователь'}>
+              <IconButton onClick={handleOpenUserMenu} sx={{ p: 0, ml: { xs: 0.5, sm: 1 } }}>
+                <Avatar alt={user?.name || 'Пользователь'} sx={{ width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 } }}>
                   {getUserInitials()}
                 </Avatar>
               </IconButton>
@@ -312,69 +324,152 @@ const MainLayout: React.FC = () => {
           </Box>
         </Toolbar>
       </AppBarStyled>
-      <Drawer
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
+      
+      {isMobile ? (
+        <SwipeableDrawer
+          open={open}
+          onClose={handleDrawerClose}
+          onOpen={handleDrawerOpen}
+          sx={{
             width: drawerWidth,
-            boxSizing: 'border-box',
-          },
-        }}
-        variant={isMobile ? 'temporary' : 'persistent'}
-        anchor="left"
-        open={open}
-        onClose={handleDrawerClose}
-      >
-        <DrawerHeader>
-          <Typography variant="h6" sx={{ flexGrow: 1, pl: 1 }}>
-            SolarTrade
-          </Typography>
-          <IconButton onClick={handleDrawerClose}>
-            <ChevronLeftIcon />
-          </IconButton>
-        </DrawerHeader>
-        <Divider />
-        <List>
-          {menuOptions.map((option) => (
-            <ListItem key={option.path} disablePadding>
-              <ListItemButton
-                selected={location.pathname === option.path}
-                onClick={() => {
-                  navigate(option.path);
-                  if (isMobile) {
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: drawerWidth,
+              boxSizing: 'border-box',
+            },
+            zIndex: theme.zIndex.drawer + 1,
+          }}
+        >
+          <DrawerHeader>
+            <Typography variant="h6" sx={{ flexGrow: 1, pl: 1 }}>
+              SolarTrade
+            </Typography>
+            <IconButton onClick={handleDrawerClose}>
+              <ChevronLeftIcon />
+            </IconButton>
+          </DrawerHeader>
+          <Divider />
+          <List>
+            {menuOptions.map((option) => (
+              <ListItem key={option.path} disablePadding>
+                <ListItemButton
+                  selected={location.pathname === option.path}
+                  onClick={() => {
+                    navigate(option.path);
                     handleDrawerClose();
-                  }
-                }}
-              >
-                <ListItemIcon>
-                  {option.icon}
-                </ListItemIcon>
-                <ListItemText primary={option.title} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-        
-        {isMobile && (
-          <>
-            <Divider sx={{ mt: 'auto' }} />
-            <ListItem disablePadding>
-              <ListItemButton onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon color="error" />
-                </ListItemIcon>
-                <ListItemText primary="Выйти" sx={{ color: 'error.main' }} />
-              </ListItemButton>
-            </ListItem>
-          </>
-        )}
-      </Drawer>
-      <Main open={open}>
+                  }}
+                >
+                  <ListItemIcon>
+                    {option.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={option.title} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+            
+            {/* Пункт "Пользователи" только для администратора */}
+            {isAdmin && (
+              <ListItem disablePadding>
+                <ListItemButton
+                  selected={location.pathname === '/users'}
+                  onClick={() => {
+                    navigate('/users');
+                    handleDrawerClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <PeopleIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Пользователи" />
+                </ListItemButton>
+              </ListItem>
+            )}
+          </List>
+          
+          <Divider sx={{ mt: 'auto' }} />
+          <ListItem disablePadding>
+            <ListItemButton onClick={handleLogout}>
+              <ListItemIcon>
+                <LogoutIcon color="error" />
+              </ListItemIcon>
+              <ListItemText primary="Выйти" sx={{ color: 'error.main' }} />
+            </ListItemButton>
+          </ListItem>
+        </SwipeableDrawer>
+      ) : (
+        <Drawer
+          sx={{
+            width: drawerWidth,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: drawerWidth,
+              boxSizing: 'border-box',
+            },
+          }}
+          variant="persistent"
+          anchor="left"
+          open={open}
+        >
+          <DrawerHeader>
+            <Typography variant="h6" sx={{ flexGrow: 1, pl: 1 }}>
+              SolarTrade
+            </Typography>
+            <IconButton onClick={handleDrawerClose}>
+              <ChevronLeftIcon />
+            </IconButton>
+          </DrawerHeader>
+          <Divider />
+          <List>
+            {menuOptions.map((option) => (
+              <ListItem key={option.path} disablePadding>
+                <ListItemButton
+                  selected={location.pathname === option.path}
+                  onClick={() => {
+                    navigate(option.path);
+                  }}
+                >
+                  <ListItemIcon>
+                    {option.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={option.title} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+            
+            {/* Пункт "Пользователи" только для администратора */}
+            {isAdmin && (
+              <ListItem disablePadding>
+                <ListItemButton
+                  selected={location.pathname === '/users'}
+                  onClick={() => {
+                    navigate('/users');
+                  }}
+                >
+                  <ListItemIcon>
+                    <PeopleIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Пользователи" />
+                </ListItemButton>
+              </ListItem>
+            )}
+          </List>
+        </Drawer>
+      )}
+      
+      {/* Backdrop за выдвижным меню для мобильных устройств */}
+      {isMobile && open && (
+        <Backdrop
+          sx={{ zIndex: theme.zIndex.drawer }}
+          open={true}
+          onClick={handleDrawerClose}
+        />
+      )}
+      
+      <Main open={!isMobile && open}>
         <DrawerHeader />
         <Box sx={{ 
           pb: 5,
-          px: { xs: 0.5, sm: 2 },
+          px: { xs: 0.5, sm: 1, md: 2 },
           maxWidth: '100%', 
           overflowX: 'hidden'
         }}>

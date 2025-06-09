@@ -47,9 +47,8 @@ export class UsersController {
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
-
-  @ApiOperation({ summary: 'Деактивация пользователя' })
-  @ApiResponse({ status: 200, description: 'Пользователь деактивирован' })
+  @ApiOperation({ summary: 'Удаление пользователя' })
+  @ApiResponse({ status: 200, description: 'Пользователь удален' })
   @ApiResponse({ status: 404, description: 'Пользователь не найден' })
   @Roles(UserRole.ADMIN)
   @Delete(':id')

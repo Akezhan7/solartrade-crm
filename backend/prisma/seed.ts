@@ -52,13 +52,15 @@ async function main() {
   });
 
   console.log(`Created users: ${admin.name}, ${manager.name}, ${sales.name}`);
-
   // Create clients
   const client1 = await prisma.client.create({
     data: {
       name: 'ООО "СтройТех"',
       phone: '+7 (495) 123-45-67',
       email: 'info@stroytech.ru',
+      manager: {
+        connect: { id: manager.id }
+      },
       company: {
         create: {
           name: 'ООО "СтройТех"',
@@ -70,20 +72,24 @@ async function main() {
       },
     },
   });
-
   const client2 = await prisma.client.create({
     data: {
       name: 'ИП Иванов А.А.',
       phone: '+7 (903) 987-65-43',
       email: 'ivanov@example.com',
+      manager: {
+        connect: { id: manager.id }
+      },
     },
   });
-
   const client3 = await prisma.client.create({
     data: {
       name: 'АО "ЭнергоСистемы"',
       phone: '+7 (499) 765-43-21',
       email: 'contact@energosystems.ru',
+      manager: {
+        connect: { id: manager.id }
+      },
       company: {
         create: {
           name: 'АО "ЭнергоСистемы"',
