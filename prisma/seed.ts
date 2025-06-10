@@ -1,0 +1,271 @@
+import { PrismaClient, $Enums } from '@prisma/client';
+
+// Import enum types
+type UserRole = $Enums.UserRole;
+type DealStatus = $Enums.DealStatus;
+type TaskStatus = $Enums.TaskStatus;
+
+// Access enum values
+const UserRole = $Enums.UserRole;
+const DealStatus = $Enums.DealStatus;
+const TaskStatus = $Enums.TaskStatus;
+import * as bcrypt from 'bcrypt';
+
+// Define TaskPriority enum locally since it might not be available in the generated client yet
+enum TaskPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH'
+}
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('Starting seeding...');
+
+  // Clear existing data
+  await clearTables();
+
+  // Create users
+  const adminPassword = await bcrypt.hash('admin123', 10);
+  const managerPassword = await bcrypt.hash('manager123', 10);
+  const salesPassword = await bcrypt.hash('sales123', 10);
+
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@solartrade.com',
+      name: 'Администратор',
+      password: adminPassword,
+      role: UserRole.ADMIN,
+      position: 'Руководитель',
+    },
+  });
+
+  const manager = await prisma.user.create({
+    data: {
+      email: 'manager@solartrade.com',
+      name: 'Иван Менеджеров',
+      password: managerPassword,
+      role: UserRole.MANAGER,
+      position: 'Менеджер проектов',
+    },
+  });
+
+  const sales = await prisma.user.create({
+    data: {
+      email: 'sales@solartrade.com',
+      name: 'Петр Продажин',
+      password: salesPassword,
+      role: UserRole.SALES,
+      position: 'Менеджер по продажам',
+    },
+  });
+
+  console.log(`Created users: ${admin.name}, ${manager.name}, ${sales.name}`);
+  // Create clients
+  const client1 = await prisma.client.create({
+    data: {
+      name: 'ООО "СтройТех"',
+      phone: '+7 (495) 123-45-67',
+      email: 'info@stroytech.ru',
+      manager: {
+        connect: { id: manager.id }
+      },
+      company: {
+        create: {
+          name: 'ООО "СтройТех"',
+          inn: '7701234567',
+          kpp: '770101001',
+          address: 'г. Москва, ул. Строительная, д. 15',
+          bankDetails: 'Р/С 40702810123456789012 в ПАО Сбербанк',
+        },
+      },
+    },
+  });
+  const client2 = await prisma.client.create({
+    data: {
+      name: 'ИП Иванов А.А.',
+      phone: '+7 (903) 987-65-43',
+      email: 'ivanov@example.com',
+      manager: {
+        connect: { id: manager.id }
+      },
+    },
+  });
+  const client3 = await prisma.client.create({
+    data: {
+      name: 'АО "ЭнергоСистемы"',
+      phone: '+7 (499) 765-43-21',
+      email: 'contact@energosystems.ru',
+      manager: {
+        connect: { id: manager.id }
+      },
+      company: {
+        create: {
+          name: 'АО "ЭнергоСистемы"',
+          inn: '7709876543',
+          kpp: '770901001',
+          address: 'г. Москва, просп. Энергетиков, д. 45',
+          bankDetails: 'Р/С 40702810987654321098 в ВТБ',
+        },
+      },
+    },
+  });
+
+  console.log(`Created clients: ${client1.name}, ${client2.name}, ${client3.name}`);
+
+  // Create deals
+  const deal1 = await prisma.deal.create({
+    data: {
+      title: 'Установка солнечных панелей',
+      description: 'Установка солнечных панелей на крыше офисного здания',
+      amount: 450000,
+      status: DealStatus.NEGOTIATION,
+      clientId: client1.id,
+      managerId: manager.id,
+      createdById: manager.id,
+      estimatedClosingDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+      probability: 70,
+    },
+  });
+
+  const deal2 = await prisma.deal.create({
+    data: {
+      title: 'Автономное энергоснабжение дома',
+      description: 'Проектирование и монтаж автономной энергосистемы для загородного дома',
+      amount: 780000,
+      status: DealStatus.PROPOSAL,
+      clientId: client2.id,
+      managerId: manager.id,
+      createdById: sales.id,
+      estimatedClosingDate: new Date(new Date().setDate(new Date().getDate() + 45)),
+      probability: 50,
+    },
+  });
+
+  const deal3 = await prisma.deal.create({
+    data: {
+      title: 'Замена стандартного освещения на энергосберегающее',
+      description: 'Замена освещения в офисе компании на энергосберегающее',
+      amount: 320000,
+      status: DealStatus.AGREEMENT,
+      clientId: client3.id,
+      managerId: sales.id,
+      createdById: sales.id,
+      estimatedClosingDate: new Date(new Date().setDate(new Date().getDate() + 15)),
+      probability: 85,
+    },
+  });
+
+  console.log(`Created deals: ${deal1.title}, ${deal2.title}, ${deal3.title}`);
+
+  // Create tasks with priority
+  const taskData1: any = {
+    title: 'Подготовить коммерческое предложение',
+    description: 'Подготовить КП для клиента ООО "СтройТех" на установку солнечных панелей',
+    status: TaskStatus.NEW,
+    priority: 'HIGH',
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 3)),
+    assigneeId: sales.id,
+    clientId: client1.id,
+    dealId: deal1.id,
+    createdById: manager.id,
+  };
+  const task1 = await prisma.task.create({ data: taskData1 });
+
+  const taskData2: any = {
+    title: 'Провести презентацию для клиента',
+    description: 'Подготовить и провести презентацию автономной энергосистемы для клиента',
+    status: TaskStatus.IN_PROGRESS,
+    priority: 'MEDIUM',
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
+    assigneeId: manager.id,
+    clientId: client2.id,
+    dealId: deal2.id,
+    createdById: manager.id,
+  };
+  const task2 = await prisma.task.create({ data: taskData2 });
+
+  const taskData3: any = {
+    title: 'Организовать встречу с техническим отделом клиента',
+    description: 'Договориться о встрече с техотделом для обсуждения проекта освещения',
+    status: TaskStatus.NEW,
+    priority: 'LOW',
+    dueDate: new Date(new Date().setDate(new Date().getDate() + 2)),
+    assigneeId: sales.id,
+    clientId: client3.id,
+    dealId: deal3.id,
+    createdById: sales.id,
+  };
+  const task3 = await prisma.task.create({ data: taskData3 });
+
+  console.log(`Created tasks: ${task1.title}, ${task2.title}, ${task3.title}`);
+
+  // Create interactions
+  await prisma.interaction.create({
+    data: {
+      type: 'CALL',
+      content: 'Созвонился с клиентом для обсуждения деталей проекта. Клиент заинтересован в установке панелей мощностью от 5 кВт.',
+      clientId: client1.id,
+      createdById: manager.id,
+    },
+  });
+
+  await prisma.interaction.create({
+    data: {
+      type: 'EMAIL',
+      content: 'Отправил клиенту предварительные расчеты по системе автономного энергоснабжения.',
+      clientId: client2.id,
+      createdById: sales.id,
+    },
+  });
+
+  await prisma.interaction.create({
+    data: {
+      type: 'NOTE',
+      content: 'Клиент указал, что в здании уже была начата замена освещения другой компанией, но они не устроили качеством работ.',
+      clientId: client3.id,
+      createdById: sales.id,
+    },
+  });
+
+  console.log('Created interactions');
+
+  // Create Telegram settings (empty by default)
+  await prisma.telegramSettings.create({
+    data: {
+      botToken: '',
+      chatId: '',
+      notifyNewClients: true,
+      notifyNewDeals: true,
+      notifyNewTasks: true,
+      notifyTaskDeadlines: true,
+      taskReminderHours: [24, 8, 2],
+      isActive: false
+    },
+  });
+
+  console.log('Created Telegram settings');
+  console.log('Seeding completed successfully!');
+}
+
+async function clearTables() {
+  // Clear tables before seeding
+  await prisma.interaction.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.deal.deleteMany();
+  await prisma.clientCompany.deleteMany();
+  await prisma.client.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.telegramSettings.deleteMany();
+  console.log('All tables cleared');
+}
+
+main()
+  .catch((error) => {
+    console.error('Error during seeding:', error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
