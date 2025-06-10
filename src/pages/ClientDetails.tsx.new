@@ -1,0 +1,395 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Typography,
+  Paper,
+  Grid,
+  Button,
+  Tabs,
+  Tab,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  IconButton,
+  Snackbar,
+  Alert,
+  FormControlLabel,
+  Switch,
+  Card,
+  CardContent,
+  Chip,
+  useTheme,
+  useMediaQuery
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
+import PhoneIcon from '@mui/icons-material/Phone';
+import EmailIcon from '@mui/icons-material/Email';
+import BusinessIcon from '@mui/icons-material/Business';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import EventNoteIcon from '@mui/icons-material/EventNote';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import { Client, Task, Deal, Interaction, Contact, InteractionType, TaskStatus, DealStatus, TaskPriority, User } from '../types';
+import ClientInteractionHistory from '../components/clients/ClientInteractionHistory';
+import ClientInteractionHistoryEnhanced from '../components/clients/ClientInteractionHistoryEnhanced';
+import ClientRequisites from '../components/clients/ClientRequisites';
+import ClientDeals from '../components/clients/ClientDeals';
+import ClientContacts from '../components/clients/ClientContacts';
+import apiService from '../utils/apiService';
+import telegramService from '../utils/telegramService';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+
+// Interface definitions unchanged...
+// Mock data removed...
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`client-tabpanel-${index}`}
+      aria-labelledby={`client-tab-${index}`}
+      style={{ width: '100%' }}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: { xs: 1, sm: 3 } }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
+
+const ClientDetails: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [loading, setLoading] = useState(true);  
+  const [client, setClient] = useState<Client | null>(null);
+  const [clientTasks, setClientTasks] = useState<Task[]>([]);
+  const [clientDeals, setClientDeals] = useState<Deal[]>([]);
+  const [clientInteractions, setClientInteractions] = useState<Interaction[]>([]);
+  const [clientContacts, setClientContacts] = useState<Contact[]>([]);
+  const [tabValue, setTabValue] = useState(0);
+  const [openNewNoteDialog, setOpenNewNoteDialog] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [managers, setManagers] = useState<User[]>([]);
+  const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  // Other states unchanged...
+
+  useEffect(() => {
+    const isAdmin = apiService.isAdmin();
+    setIsCurrentUserAdmin(isAdmin);
+    
+    // Fetch managers if admin
+    if (isAdmin) {
+      const fetchManagers = async () => {
+        try {
+          const users = await apiService.getUsers();
+          // Filter only managers and admin users
+          const managerUsers = users.filter((user: User) => 
+            user.role === 'MANAGER' || user.role === 'ADMIN'
+          );
+          setManagers(managerUsers);
+        } catch (error) {
+          console.error('Error fetching managers:', error);
+          setSnackbar({
+            open: true,
+            message: 'Ошибка при загрузке списка менеджеров',
+            severity: 'error'
+          });
+        }
+      };
+      
+      fetchManagers();
+    }
+    
+    const fetchClientData = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        // Запрашиваем данные клиента
+        const clientData = await apiService.getClientById(id);
+        setClient(clientData);
+        
+        // Запрашиваем активные задачи клиента
+        const taskData = await apiService.getClientTasks(id);
+        setClientTasks(taskData);
+        
+        // Запрашиваем сделки клиента
+        const dealData = await apiService.getClientDeals(id);
+        setClientDeals(dealData);
+        
+        // Запрашиваем историю взаимодействий с клиентом
+        const interactionData = await apiService.getClientInteractions(id);
+        setClientInteractions(interactionData);
+
+        // Запрашиваем контакты клиента
+        const contactData = await apiService.getClientContacts(id);
+        setClientContacts(contactData);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching client data:", error);
+        setSnackbar({
+          open: true,
+          message: 'Ошибка при загрузке данных клиента',
+          severity: 'error'
+        });
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchClientData();
+    }
+  }, [id]);
+
+  // Other handlers unchanged...
+  
+  const handleManagerChange = (event: SelectChangeEvent<string>) => {
+    if (!client) return;
+    
+    setClient({
+      ...client,
+      managerId: event.target.value
+    });
+  };
+  
+  const handleEditToggle = () => {
+    setIsEditing(!isEditing);
+  };
+
+  const handleSave = async () => {
+    if (!client) return;
+    
+    try {
+      const updatedClient = await apiService.updateClient(client.id, client);
+      setClient(updatedClient);
+      setIsEditing(false);
+      setSnackbar({
+        open: true,
+        message: 'Данные клиента успешно обновлены',
+        severity: 'success'
+      });
+    } catch (error: any) {
+      console.error('Error updating client:', error);
+      
+      if (error.response && error.response.status === 403) {
+        setSnackbar({
+          open: true,
+          message: 'У вас нет прав на редактирование данных этого клиента',
+          severity: 'warning'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Ошибка при обновлении данных клиента',
+          severity: 'error'
+        });
+      }
+    }
+  };
+  
+  // Other functions and handlers unchanged...
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!client) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h5" color="error">
+          Клиент не найден
+        </Typography>
+        <Button 
+          variant="contained" 
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/clients')}
+          sx={{ mt: 2 }}
+        >
+          Вернуться к списку клиентов
+        </Button>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: { xs: 1, sm: 3 } }}>
+      {/* Header with back button and edit/save buttons */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Button 
+          startIcon={<ArrowBackIcon />} 
+          onClick={() => navigate('/clients')}
+          sx={{ mb: 1 }}
+        >
+          К списку клиентов
+        </Button>
+        
+        <Box>
+          {isEditing ? (
+            <>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<SaveIcon />} 
+                onClick={handleSave}
+                sx={{ mr: 1 }}
+              >
+                Сохранить
+              </Button>
+              <Button 
+                variant="outlined" 
+                startIcon={<CancelIcon />} 
+                onClick={handleEditToggle}
+              >
+                Отмена
+              </Button>
+            </>
+          ) : (
+            <Button 
+              variant="outlined" 
+              startIcon={<EditIcon />} 
+              onClick={handleEditToggle}
+            >
+              Редактировать
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      <Typography variant="h4" gutterBottom>
+        {client.name}
+      </Typography>
+      
+      <Tabs value={tabValue} onChange={handleTabChange} variant={isMobile ? 'scrollable' : 'fullWidth'} scrollButtons="auto" sx={{ mb: 2 }}>
+        <Tab label="Информация" />
+        <Tab label="Контакты" />
+        <Tab label="Задачи" />
+        <Tab label="Сделки" />
+        <Tab label="Взаимодействия" />
+      </Tabs>
+      
+      <TabPanel value={tabValue} index={0}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Контактная информация
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Наименование"
+                      name="name"
+                      value={client.name}
+                      fullWidth
+                      disabled={!isEditing}
+                      margin="normal"
+                      size={isMobile ? "small" : "medium"}
+                      onChange={handleClientChange}
+                    />
+                  </Grid>
+                  {isCurrentUserAdmin && (
+                    <Grid item xs={12}>
+                      <FormControl fullWidth margin="normal" size={isMobile ? "small" : "medium"}>
+                        <InputLabel id="manager-select-label">Менеджер</InputLabel>
+                        <Select
+                          labelId="manager-select-label"
+                          id="manager-select"
+                          name="managerId"
+                          value={client.managerId || ''}
+                          label="Менеджер"
+                          onChange={handleManagerChange}
+                          disabled={!isEditing}
+                        >
+                          {managers.map((manager) => (
+                            <MenuItem key={manager.id} value={manager.id}>
+                              {manager.name} ({manager.role === 'ADMIN' ? 'Администратор' : 'Менеджер'})
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  )}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Телефон"
+                      name="phone"
+                      value={client.phone}
+                      fullWidth
+                      disabled={!isEditing}
+                      margin="normal"
+                      size={isMobile ? "small" : "medium"}
+                      onChange={handleClientChange}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Email"
+                      name="email"
+                      value={client.email}
+                      fullWidth
+                      disabled={!isEditing}
+                      margin="normal"
+                      size={isMobile ? "small" : "medium"}
+                      onChange={handleClientChange}
+                    />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Rest of the component unchanged... */}
+        </Grid>
+      </TabPanel>
+
+      {/* Other tab panels unchanged... */}
+
+      {/* Dialogs and notifications unchanged... */}
+    </Box>
+  );
+};
+
+export default ClientDetails;

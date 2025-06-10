@@ -1,0 +1,341 @@
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosHeaders, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { createBrowserHistory } from 'history';
+
+/**
+ * Конфигурация API клиента
+ */
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const history = createBrowserHistory();
+
+// Расширяем тип InternalAxiosRequestConfig для возможности добавления _retry поля
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
+// Интерфейс для данных авторизации
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+// Интерфейс для ответа с токеном доступа
+export interface AuthResponse {
+  access_token: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+  };
+}
+
+// Интерфейс для отображения ошибок доступа
+export interface AccessDeniedError {
+  message: string;
+  status: number;
+  resource?: string;
+}
+
+/**
+ * API сервис для взаимодействия с бэкендом
+ */
+class ApiService {
+  private axios: AxiosInstance;
+  private isRefreshingToken = false;
+  private failedQueue: any[] = [];
+  private accessErrors: AccessDeniedError[] = [];
+  
+  constructor() {
+    this.axios = axios.create({
+      baseURL: API_URL,
+      headers: new AxiosHeaders({
+        'Content-Type': 'application/json'
+      })
+    });
+
+    // Перехватчик запросов для добавления токена авторизации
+    this.axios.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Перехватчик ответов для обработки ошибок авторизации
+    this.axios.interceptors.response.use(
+      (response) => response,
+      async (error: AxiosError) => {
+        const originalRequest = error.config as ExtendedAxiosRequestConfig;
+        
+        // Если нет ответа от сервера вообще
+        if (!error.response) {
+          console.error('Ошибка сети - сервер недоступен');
+          return Promise.reject(error);
+        }
+        
+        // Получаем данные об ошибке
+        const { status, data } = error.response;
+        
+        if (status === 401) {
+          // Пытаемся получить информацию об ошибке
+          const errorMsg = data && typeof data === 'object' && 'message' in data 
+            ? data.message 
+            : 'Ошибка авторизации';
+          
+          console.warn(`Ошибка авторизации: ${errorMsg}`);
+          
+          // Если это не запрос на авторизацию и не повторный запрос
+          if (originalRequest && originalRequest.url !== '/auth/login' && !originalRequest._retry) {
+            originalRequest._retry = true;
+            
+            try {
+              // Пытаемся обновить токен через refresh
+              const refreshToken = localStorage.getItem('refreshToken');
+              if (refreshToken) {
+                const response = await axios.post(`${API_URL}/auth/refresh`, {
+                  refresh_token: refreshToken
+                });
+                
+                if (response.data && response.data.access_token) {
+                  localStorage.setItem('authToken', response.data.access_token);
+                  if (response.data.refresh_token) {
+                    localStorage.setItem('refreshToken', response.data.refresh_token);
+                  }
+                  
+                  if (originalRequest.headers) {
+                    originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`;
+                  }
+                  return this.axios(originalRequest);
+                }
+              }
+              
+              // Если не удалось обновить, выходим
+              this.logout(true);
+              return Promise.reject(error);
+            } catch (refreshError) {
+              console.error('Не удалось обновить токен:', refreshError);
+              this.logout(true);
+              return Promise.reject(error);
+            }
+          }
+          
+          // Если это запрос на авторизацию или уже повторная попытка
+          this.logout(true);
+        }
+
+        // Handle access denied errors (403)
+        if (status === 403) {
+          // Extract information about the resource being accessed
+          let resource = 'ресурсу';
+          let path = originalRequest?.url || '';
+          
+          if (path.includes('/clients/')) {
+            resource = 'клиенту';
+          } else if (path.includes('/deals/')) {
+            resource = 'сделке';
+          } else if (path.includes('/tasks/')) {
+            resource = 'задаче';
+          } else if (path.includes('/users/')) {
+            resource = 'пользователям';
+          }
+          
+          const accessError: AccessDeniedError = {
+            message: `Доступ запрещен к ${resource}: недостаточно прав`,
+            status: 403,
+            resource
+          };
+          
+          // Store the access error
+          this.accessErrors.push(accessError);
+          console.warn(`Доступ запрещен: ${accessError.message}`);
+        }
+        
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  /**
+   * Получает последнюю ошибку доступа и удаляет ее из списка
+   */
+  public getLastAccessError(): AccessDeniedError | null {
+    if (this.accessErrors.length === 0) return null;
+    return this.accessErrors.pop() || null;
+  }
+
+  /**
+   * Проверяет, есть ли ошибки доступа
+   */
+  public hasAccessErrors(): boolean {
+    return this.accessErrors.length > 0;
+  }
+
+  /**
+   * Очищает ошибки доступа
+   */
+  public clearAccessErrors(): void {
+    this.accessErrors = [];
+  }
+
+  /**
+   * Аутентификация пользователя
+   */
+  public async login(data: LoginRequest): Promise<AuthResponse> {
+    const response = await this.axios.post<AuthResponse>('/auth/login', data);
+    
+    if (response.data && response.data.access_token) {
+      localStorage.setItem('authToken', response.data.access_token);
+      if (response.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+    }
+    
+    return response.data;
+  }
+  
+  /**
+   * Выход пользователя из системы
+   */
+  public logout(redirectToLogin = false): void {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    
+    if (redirectToLogin) {
+      history.replace('/login');
+      window.location.reload();
+    }
+  }
+  
+  /**
+   * Проверяет, авторизован ли пользователь
+   */
+  public isAuthenticated(): boolean {
+    return !!localStorage.getItem('authToken');
+  }
+  
+  /**
+   * Проверяет, имеет ли пользователь роль администратора
+   */
+  public isAdmin(): boolean {
+    const userJson = localStorage.getItem('user');
+    if (!userJson) return false;
+    
+    try {
+      const user = JSON.parse(userJson);
+      return user && user.role === 'ADMIN';
+    } catch (e) {
+      console.error('Ошибка при проверке роли пользователя:', e);
+      return false;
+    }
+  }
+  
+  /**
+   * Проверяет, имеет ли пользователь роль менеджера
+   */
+  public isManager(): boolean {
+    const userJson = localStorage.getItem('user');
+    if (!userJson) return false;
+    
+    try {
+      const user = JSON.parse(userJson);
+      return user && user.role === 'MANAGER';
+    } catch (e) {
+      console.error('Ошибка при проверке роли пользователя:', e);
+      return false;
+    }
+  }
+  
+  /**
+   * Проверяет, имеет ли пользователь роль продавца
+   */
+  public isSales(): boolean {
+    const userJson = localStorage.getItem('user');
+    if (!userJson) return false;
+    
+    try {
+      const user = JSON.parse(userJson);
+      return user && user.role === 'SALES';
+    } catch (e) {
+      console.error('Ошибка при проверке роли пользователя:', e);
+      return false;
+    }
+  }
+  
+  /**
+   * Получает данные текущего пользователя
+   */
+  public getCurrentUser() {
+    const userJson = localStorage.getItem('user');
+    if (!userJson) return null;
+    
+    try {
+      return JSON.parse(userJson);
+    } catch (e) {
+      console.error('Ошибка при получении данных пользователя:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Универсальный метод для GET-запросов
+   */
+  public async get(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse> {
+    return this.axios.get(url, config);
+  }
+
+  /**
+   * Универсальный метод для POST-запросов
+   */
+  public async post(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse> {
+    return this.axios.post(url, data, config);
+  }
+
+  /**
+   * Универсальный метод для PUT-запросов
+   */
+  public async put(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse> {
+    return this.axios.put(url, data, config);
+  }
+
+  /**
+   * Универсальный метод для DELETE-запросов
+   */
+  public async delete(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse> {
+    return this.axios.delete(url, config);
+  }
+
+  // API методы для работы с клиентами
+  public async getClients() {
+    const response = await this.axios.get('/clients');
+    return response.data;
+  }
+
+  public async getClientById(id: string) {
+    const response = await this.axios.get(`/clients/${id}`);
+    return response.data;
+  }
+
+  public async createClient(clientData: any) {
+    const response = await this.axios.post('/clients', clientData);
+    return response.data;
+  }
+
+  public async updateClient(id: string, clientData: any) {
+    const response = await this.axios.patch(`/clients/${id}`, clientData);
+    return response.data;
+  }
+
+  public async deleteClient(id: string) {
+    const response = await this.axios.delete(`/clients/${id}`);
+    return response.data;
+  }
+
+  // Rest of the API service remains unchanged...
+}
+
+export default new ApiService();
