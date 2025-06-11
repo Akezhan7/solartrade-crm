@@ -30,10 +30,9 @@ class TelegramService {
   private settings: TelegramSettings = {
     botToken: process.env.REACT_APP_TELEGRAM_BOT_TOKEN || '',
     chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID || ''
-  };
-  async getSettings(): Promise<any> {
+  };  async getSettings(): Promise<any> {
     try {
-      const apiUrl = 'http://localhost:3001/api/telegram/settings';
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/telegram/settings`;
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
@@ -53,10 +52,9 @@ class TelegramService {
       return null;
     }
   }
-
   async updateSettings(settings: any): Promise<any> {
     try {
-      const apiUrl = 'http://localhost:3001/api/telegram/settings';
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/telegram/settings`;
       const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
@@ -96,11 +94,9 @@ class TelegramService {
         success: false,
         error: 'Бот не настроен'
       };
-    }
-
-    try {
+    }    try {
       // Используем API бекенда для отправки сообщений в Telegram
-      const apiUrl = 'http://localhost:3001/api/telegram/send-message';
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/telegram/send-message`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -237,10 +233,9 @@ ${clientName ? `<b>Клиент:</b> ${clientName}` : ''}
     `.trim();
 
     return this.sendMessage(message);
-  }
-    async testConnection(): Promise<TelegramNotificationResult> {
+  }    async testConnection(): Promise<TelegramNotificationResult> {
     try {
-      const apiUrl = 'http://localhost:3001/api/telegram/test';
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/telegram/test`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
